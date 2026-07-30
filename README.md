@@ -16,26 +16,30 @@ A [pi coding agent](https://github.com/earendil-works/pi-mono) extension that pr
 
 ## Installation
 
+### From npm (recommended)
+
+```bash
+pi install npm:pi-byted-web-search
+```
+
+### From GitHub
+
+```bash
+pi install git:github.com/zzwtsy/pi-byted-web-search
+```
+
+### Try without installing
+
+```bash
+pi -e git:github.com/zzwtsy/pi-byted-web-search
+```
+
 ### From source (development)
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/zzwtsy/pi-byted-web-search.git
 cd pi-byted-web-search
-
-# Link to pi extensions directory
-ln -sf "$(pwd)/src/index.ts" ~/.pi/agent/extensions/pi-byted-web-search.ts
-```
-
-Or load temporarily:
-
-```bash
-pi -e ./src/index.ts
-```
-
-### As a pi package
-
-```bash
-pi install ./path/to/pi-byted-web-search
+pi install .
 ```
 
 ## Configuration

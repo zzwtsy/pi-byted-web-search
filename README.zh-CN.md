@@ -16,26 +16,30 @@
 
 ## 安装
 
+### 从 npm 安装（推荐）
+
+```bash
+pi install npm:pi-byted-web-search
+```
+
+### 从 GitHub 安装
+
+```bash
+pi install git:github.com/zzwtsy/pi-byted-web-search
+```
+
+### 临时试用（不写入配置）
+
+```bash
+pi -e git:github.com/zzwtsy/pi-byted-web-search
+```
+
 ### 源码安装（开发模式）
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/zzwtsy/pi-byted-web-search.git
 cd pi-byted-web-search
-
-# 符号链接到 pi 扩展目录
-ln -sf "$(pwd)/src/index.ts" ~/.pi/agent/extensions/pi-byted-web-search.ts
-```
-
-或临时加载：
-
-```bash
-pi -e ./src/index.ts
-```
-
-### 作为 pi 包安装
-
-```bash
-pi install ./path/to/pi-byted-web-search
+pi install .
 ```
 
 ## 配置
