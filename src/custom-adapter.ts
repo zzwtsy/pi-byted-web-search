@@ -1,0 +1,68 @@
+/**
+ * Custom 版适配器：统一模型 <-> Custom API 请求/响应互转。
+ *
+ * @module
+ */
+
+import type {
+  CustomApiResponse,
+  DoubaoSearchConfig,
+  SearchAdapter,
+  UnifiedSearchItem,
+  UnifiedSearchRequest,
+  UnifiedSearchResult,
+} from "./types.ts";
+
+export const customAdapter: SearchAdapter = {
+  version: "custom",
+  apiUrl: "https://open.feedcoopapi.com/search_api/web_search",
+
+  buildRequest(req: UnifiedSearchRequest, config: DoubaoSearchConfig): Record<string, unknown> {
+    return {
+      Query: req.query,
+      SearchType: "web",
+      Count: Math.min(req.count, 50),
+      Filter: {
+        NeedContent: false,
+        NeedUrl: true,
+        ...(req.sites != null && { Sites: req.sites }),
+        ...(req.blockHosts != null && { BlockHosts: req.blockHosts }),
+        ...(config.authInfoLevel !== 0 && { AuthInfoLevel: config.authInfoLevel }),
+      },
+      ...(req.timeRange != null && { TimeRange: req.timeRange }),
+      ContentFormats: req.contentFormat,
+      ...(config.industry != null && { Industry: config.industry }),
+      QueryControl: { QueryRewrite: config.queryRewrite },
+    };
+  },
+
+  parseResponse(raw: unknown): UnifiedSearchResult {
+    const data = raw as CustomApiResponse;
+    const result = data.Result;
+
+    if (!result) {
+      return { totalCount: 0, results: [], version: "custom" };
+    }
+
+    const items: UnifiedSearchItem[] = (result.WebResults ?? []).map(w => ({
+      title: w.Title ?? "",
+      url: w.Url ?? "",
+      snippet: w.Snippet ?? "",
+      summary: w.Summary,
+      content: w.Content,
+      publishTime: w.PublishTime,
+      siteName: w.SiteName,
+      rankScore: w.RankScore,
+      authInfoDes: w.AuthInfoDes,
+      authInfoLevel: w.AuthInfoLevel,
+    }));
+
+    return {
+      totalCount: result.ResultCount,
+      results: items,
+      timeCostMs: result.TimeCost,
+      logId: result.LogId,
+      version: "custom",
+    };
+  },
+};
