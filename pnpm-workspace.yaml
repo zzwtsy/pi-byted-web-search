@@ -1,3 +1,5 @@
 allowBuilds:
-  '@google/genai': true
+  "@google/genai": true
   protobufjs: true
+shellEmulator: true
+trustPolicy: no-downgrade
