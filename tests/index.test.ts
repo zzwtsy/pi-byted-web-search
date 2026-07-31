@@ -2,7 +2,6 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import { loadConfig, loadKeysFromEnv } from "../src/config.ts";
 
-import { formatKeyStatus } from "../src/formatter.ts";
 import { createWebSearchTool } from "../src/tool.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";
 
@@ -20,10 +19,6 @@ vi.mock("../src/tool.ts", () => ({
     getPool,
     execute: vi.fn(),
   })),
-}));
-
-vi.mock("../src/formatter.ts", () => ({
-  formatKeyStatus: vi.fn(() => "Key 池状态"),
 }));
 
 /** Mock 函数类型 */
@@ -87,12 +82,15 @@ function getCommandHandler(pi: ExtensionAPI): { handler: (args: string, ctx: unk
 }
 
 /** 简单 mock ctx */
-function mockCtx(overrides: Record<string, unknown> = {}): { cwd: string; mode: string; hasUI: boolean; ui: { notify: ReturnType<typeof vi.fn> } } {
+function mockCtx(overrides: Record<string, unknown> = {}): { cwd: string; mode: string; hasUI: boolean; ui: { notify: ReturnType<typeof vi.fn>; custom: ReturnType<typeof vi.fn> } } {
   return {
     cwd: "/tmp",
     mode: "tui",
     hasUI: true,
-    ui: { notify: vi.fn() },
+    ui: {
+      notify: vi.fn(),
+      custom: vi.fn(async () => undefined),
+    },
     ...overrides,
   };
 }
@@ -218,7 +216,7 @@ describe("index.ts 扩展入口", () => {
     expect(() => getPool()).toThrow(/not initialized/);
   });
 
-  it("/doubao-keys 命令在 pool 初始化后显示状态", async () => {
+  it("/doubao-keys 命令在 pool 初始化后显示状态面板", async () => {
     const pi = mockPi();
     const { default: factory } = await import("../src/index.ts");
     factory(pi);
@@ -231,27 +229,28 @@ describe("index.ts 扩展入口", () => {
     const cmdOpts = getCommandHandler(pi);
     expect(cmdOpts).toBeDefined();
 
-    const ctx = mockCtx({ hasUI: true });
+    const ctx = mockCtx({ mode: "tui" });
     await cmdOpts!.handler("", ctx);
 
-    expect(formatKeyStatus).toHaveBeenCalled();
-    expect(ctx.ui.notify).toHaveBeenCalledWith("Key 池状态", "info");
+    // 通过 ctx.ui.custom 打开交互面板（不再是 notify 文本倾倒）
+    expect(ctx.ui.custom).toHaveBeenCalledTimes(1);
+    expect(ctx.ui.notify).not.toHaveBeenCalled();
   });
 
-  it("/doubao-keys 命令在 pool 未初始化时不报错", async () => {
+  it("/doubao-keys 命令在 pool 未初始化时不打开面板", async () => {
     const pi = mockPi();
     const { default: factory } = await import("../src/index.ts");
     factory(pi);
 
     // 不触发 session_start，直接调用命令
     const cmdOpts = getCommandHandler(pi);
-    const ctx = mockCtx({ hasUI: true });
+    const ctx = mockCtx({ mode: "tui" });
     await cmdOpts!.handler("", ctx);
 
-    expect(ctx.ui.notify).not.toHaveBeenCalled();
+    expect(ctx.ui.custom).not.toHaveBeenCalled();
   });
 
-  it("/doubao-keys 命令在 hasUI=false 时不执行", async () => {
+  it("/doubao-keys 命令在非 tui 模式时不执行", async () => {
     const pi = mockPi();
     const { default: factory } = await import("../src/index.ts");
     factory(pi);
@@ -260,10 +259,10 @@ describe("index.ts 扩展入口", () => {
     await startHandler?.({}, mockCtx());
 
     const cmdOpts = getCommandHandler(pi);
-    const ctx = mockCtx({ hasUI: false, mode: "print" });
+    const ctx = mockCtx({ mode: "print" });
     await cmdOpts!.handler("", ctx);
 
-    expect(ctx.ui.notify).not.toHaveBeenCalled();
+    expect(ctx.ui.custom).not.toHaveBeenCalled();
   });
 
   it("session_shutdown 将 pool 置 null", async () => {

@@ -110,6 +110,39 @@ describe("searchWithKeyPool", () => {
     expect(status.find(s => s.label === "key1")?.status).toBe("active");
   });
 
+  it("换 Key 时触发 onRetry 回调", async () => {
+    mockFetch
+      .mockResolvedValueOnce(makeResponse(errorBody(700429, "rate limited")))
+      .mockResolvedValueOnce(makeResponse(successBody()));
+
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+      { key: "k2", label: "key2", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    const onRetry = vi.fn();
+    const outcome = await searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG, undefined, onRetry);
+    expect(outcome.keyLabel).toBe("key2");
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(onRetry).toHaveBeenCalledWith({
+      attempt: 1,
+      keyLabel: "key2",
+      reason: "rate limited",
+    });
+  });
+
+  it("首次尝试成功时不触发 onRetry", async () => {
+    mockFetch.mockResolvedValue(makeResponse(successBody()));
+
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    const onRetry = vi.fn();
+    await searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG, undefined, onRetry);
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
   it("内部错误同 Key 重试耗尽后换 Key", async () => {
     mockFetch
       .mockResolvedValueOnce(makeResponse(errorBody(10500, "inner")))

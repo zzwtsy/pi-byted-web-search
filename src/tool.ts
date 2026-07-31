@@ -15,7 +15,7 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { searchWithKeyPool } from "./client.ts";
 import { customAdapter } from "./custom-adapter.ts";
-import { formatResults } from "./formatter.ts";
+import { formatResults, truncateText } from "./formatter.ts";
 import { globalAdapter } from "./global-adapter.ts";
 import { renderSearchCall, renderSearchResult } from "./renderer.ts";
 
@@ -131,8 +131,24 @@ export function createWebSearchTool(
         details: emptyDetails,
       });
 
-      // 执行搜索
-      const outcome = await searchWithKeyPool(pool, adapter, req, config, signal);
+      // 执行搜索（换 Key 重试时通过 onRetry 推送流式进度）
+      const outcome = await searchWithKeyPool(
+        pool,
+        adapter,
+        req,
+        config,
+        signal,
+        (info) => {
+          onUpdate?.({
+            content: [{
+              type: "text",
+              text: `Retrying with key ${info.keyLabel} (attempt ${info.attempt}): ${truncateText(info.reason, 100)}`,
+            }],
+            // 类型要求完整 AgentToolResult；isPartial 渲染忽略 details 内容
+            details: emptyDetails,
+          });
+        },
+      );
       const result = outcome.result;
 
       // Global 版：按请求中实际出现的参数计算被忽略列表（适配器不再无条件上报）

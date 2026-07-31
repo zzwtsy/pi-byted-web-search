@@ -244,6 +244,31 @@ describe("createWebSearchTool", () => {
     spy.mockRestore();
   });
 
+  it("failover 时 onUpdate 收到重试消息", async () => {
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    const mockModule = await import("../src/client.ts");
+    const spy = vi.spyOn(mockModule, "searchWithKeyPool")
+      .mockImplementation(async (_pool, _adapter, _req, _config, _signal, onRetry) => {
+        onRetry?.({ attempt: 1, keyLabel: "key2", reason: "rate limited" });
+        return mockOutcome(successResult());
+      });
+
+    const onUpdate = vi.fn();
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG);
+    await tool.execute("call-1", { query: "test" }, undefined, onUpdate, {} as never);
+
+    // 3 次更新：开始搜索 + 换 Key 重试 + 找到结果
+    expect(onUpdate).toHaveBeenCalledTimes(3);
+    const texts = onUpdate.mock.calls.map(c => (c[0] as { content: Array<{ text: string }> }).content[0].text);
+    expect(texts[1]).toContain("Retrying with key key2");
+    expect(texts[1]).toContain("rate limited");
+
+    spy.mockRestore();
+  });
+
   it("参数 schema 携带约束（min/max/pattern）", () => {
     const pool = new KeyPool([]);
     const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG);

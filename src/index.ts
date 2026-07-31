@@ -6,8 +6,8 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadConfig, loadKeysFromEnv } from "./config.ts";
-import { formatKeyStatus } from "./formatter.ts";
 import { KeyPool } from "./key-pool.ts";
+import { KeyStatusComponent } from "./key-status.ts";
 import { createWebSearchTool } from "./tool.ts";
 import { DEFAULT_CONFIG } from "./types.ts";
 
@@ -57,7 +57,11 @@ export default function (pi: ExtensionAPI) {
       // hasUI 在 RPC 模式同样为 true（见 pi types.d.ts），终端 UI 用 mode 守卫
       if (ctx.mode !== "tui" || pool === null)
         return;
-      ctx.ui.notify(formatKeyStatus(pool.getStatus()), "info");
+      // 快照引用，避免组件打开期间 session_shutdown 将 pool 置 null
+      const currentPool = pool;
+      await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
+        return new KeyStatusComponent(() => currentPool.getStatus(), theme, () => done());
+      });
     },
   });
 }

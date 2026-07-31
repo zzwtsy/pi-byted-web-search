@@ -19,6 +19,16 @@ export interface SearchOutcome {
   keyLabel: string;
 }
 
+/** 换 Key 重试的进度信息（回调用，仅含 label 不含明文 Key）。 */
+export interface RetryInfo {
+  /** 当前是第几次尝试（1-based；0 表示首次，不触发回调）。 */
+  attempt: number;
+  /** 换用 Key 的 label（如 "key2"）。 */
+  keyLabel: string;
+  /** 上次失败原因（API 错误消息或网络错误描述）。 */
+  reason: string;
+}
+
 /**
  * 可重试的网络错误（连接失败等瞬时故障）。
  *
@@ -51,6 +61,7 @@ export async function searchWithKeyPool(
   req: UnifiedSearchRequest,
   config: DoubaoSearchConfig,
   signal?: AbortSignal,
+  onRetry?: (info: RetryInfo) => void,
 ): Promise<SearchOutcome> {
   if (pool.size === 0) {
     throw new Error("No API key configured. Set the DOUBAO_SEARCH_API_KEYS or DOUBAO_SEARCH_API_KEY environment variable.");
@@ -63,6 +74,15 @@ export async function searchWithKeyPool(
     const keyState = pool.acquire(adapter.version);
     if (!keyState) {
       throw new Error(formatNoKeyError(pool));
+    }
+
+    // 换 Key 后通知进度（首次尝试不通知）
+    if (attempt > 0 && onRetry) {
+      onRetry({
+        attempt,
+        keyLabel: keyState.label,
+        reason: lastError?.message ?? "previous attempt failed",
+      });
     }
 
     try {

@@ -1,6 +1,6 @@
-import type { KeyState, UnifiedSearchResult } from "../src/types.ts";
+import type { UnifiedSearchResult } from "../src/types.ts";
 import { describe, expect, it } from "vitest";
-import { formatKeyStatus, formatResults } from "../src/formatter.ts";
+import { formatResults } from "../src/formatter.ts";
 
 function makeResult(overrides: Partial<UnifiedSearchResult> = {}): UnifiedSearchResult {
   return {
@@ -114,60 +114,5 @@ describe("formatResults", () => {
   it("custom 版标记", () => {
     const text = formatResults(makeResult({ version: "custom" }), "brief");
     expect(text).toContain("Custom");
-  });
-});
-
-describe("formatKeyStatus", () => {
-  it("空池", () => {
-    expect(formatKeyStatus([])).toBe("No API key configured");
-  });
-
-  it("正常输出各字段", () => {
-    const states: KeyState[] = [
-      {
-        key: "abc...xyz",
-        label: "key1",
-        billingType: "postpaid",
-        status: "active",
-        useCount: 5,
-      },
-    ];
-    const text = formatKeyStatus(states);
-    expect(text).toContain("[key1]");
-    expect(text).toContain("postpaid");
-    expect(text).toContain("active");
-    expect(text).toContain("used 5 times");
-  });
-
-  it("限流状态显示冷却时间", () => {
-    const states: KeyState[] = [
-      {
-        key: "k",
-        label: "key1",
-        billingType: "subscription",
-        status: "rate_limited",
-        rateLimitedUntil: Date.now() + 30_000,
-        useCount: 3,
-      },
-    ];
-    const text = formatKeyStatus(states);
-    expect(text).toContain("rate_limited");
-    expect(text).toContain("cooldown");
-  });
-
-  it("耗尽状态显示错误原因", () => {
-    const states: KeyState[] = [
-      {
-        key: "k",
-        label: "key1",
-        billingType: "postpaid",
-        status: "exhausted",
-        lastError: "额度耗尽",
-        useCount: 500,
-      },
-    ];
-    const text = formatKeyStatus(states);
-    expect(text).toContain("exhausted");
-    expect(text).toContain("额度耗尽");
   });
 });

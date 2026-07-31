@@ -4,7 +4,7 @@
  * @module
  */
 
-import type { DetailLevel, KeyState, UnifiedSearchItem, UnifiedSearchResult } from "./types.ts";
+import type { DetailLevel, UnifiedSearchItem, UnifiedSearchResult } from "./types.ts";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -135,38 +135,4 @@ export function truncateText(text: string, maxChars: number): string {
     return text;
   }
   return `${chars.slice(0, maxChars).join("")}...`;
-}
-
-/**
- * 格式化 KeyPool 状态为文本（给 /doubao-keys 命令用）。
- */
-export function formatKeyStatus(states: KeyState[]): string {
-  if (states.length === 0) {
-    return "No API key configured";
-  }
-
-  const lines: string[] = [];
-  for (const s of states) {
-    const parts = [
-      `[${s.label}]`,
-      `(${s.key})`,
-      s.billingType,
-      s.status,
-    ];
-
-    if (s.status === "rate_limited" && s.rateLimitedUntil != null) {
-      const remaining = Math.ceil((s.rateLimitedUntil - Date.now()) / 1000);
-      parts.push(`cooldown (${Math.max(0, remaining)}s left)`);
-    }
-
-    if (s.lastError != null) {
-      parts.push(s.lastError);
-    }
-
-    parts.push(`used ${s.useCount} times`);
-
-    lines.push(parts.join("  "));
-  }
-
-  return lines.join("\n");
 }
