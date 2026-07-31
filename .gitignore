@@ -19,3 +19,5 @@ Thumbs.db
 # Temp
 *.log
 tmp/
+
+docs/plans/

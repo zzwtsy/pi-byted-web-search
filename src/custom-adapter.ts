@@ -4,14 +4,55 @@
  * @module
  */
 
+import type { ApiError } from "./errors.ts";
 import type {
-  CustomApiResponse,
   DoubaoSearchConfig,
   SearchAdapter,
   UnifiedSearchItem,
   UnifiedSearchRequest,
   UnifiedSearchResult,
 } from "./types.ts";
+
+// ============================================================================
+// Custom 版 API 原始响应类型（就近放置，仅本适配器消费）
+// ============================================================================
+
+export interface CustomApiResponse {
+  ResponseMetadata: {
+    RequestId: string;
+    Action?: string;
+    Version?: string;
+    Service?: string;
+    Region?: string;
+    Error?: ApiError;
+  };
+  Result?: {
+    ResultCount: number;
+    WebResults?: CustomWebResult[];
+    SearchContext?: { SearchType: string; OriginQuery: string };
+    TimeCost: number;
+    LogId: string;
+    CardResults?: unknown;
+  };
+}
+
+export interface CustomWebResult {
+  Id: string;
+  SortId: number;
+  Title: string;
+  SiteName?: string;
+  Url?: string;
+  Snippet: string;
+  Summary?: string;
+  Content?: string;
+  PublishTime?: string;
+  LogoUrl?: string;
+  RankScore?: number;
+  AuthInfoDes: string;
+  AuthInfoLevel: number;
+  ContentFormats?: string;
+  RuyiInfo?: unknown;
+}
 
 export const customAdapter: SearchAdapter = {
   version: "custom",

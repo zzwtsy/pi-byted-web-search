@@ -16,6 +16,13 @@ export type ErrorStrategy
     | "retrySameKey" // 内部错误，同 Key 重试（官方标注可重试）
     | "fatal"; // 直接抛出，不换 Key
 
+/** API 响应中的错误结构（ResponseMetadata.Error）。 */
+export interface ApiError {
+  CodeN: number;
+  Code: string;
+  Message: string;
+}
+
 /** 豆包搜索 API 错误码 */
 export const ErrorCode = {
   ParamError: 10400,

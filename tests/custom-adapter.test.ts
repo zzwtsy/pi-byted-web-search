@@ -1,4 +1,5 @@
-import type { CustomApiResponse, UnifiedSearchRequest } from "../src/types.ts";
+import type { CustomApiResponse } from "../src/custom-adapter.ts";
+import type { UnifiedSearchRequest } from "../src/types.ts";
 import { describe, expect, it } from "vitest";
 import { customAdapter } from "../src/custom-adapter.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";

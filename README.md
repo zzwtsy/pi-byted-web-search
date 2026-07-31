@@ -4,6 +4,8 @@
 
 A [pi coding agent](https://github.com/earendil-works/pi-mono) extension that provides web search capabilities via the [Doubao Search API](https://www.volcengine.com/docs/87772) (Volcano Engine).
 
+> API reference snapshots (Custom/Global versions) live in [`docs/api/`](docs/api/). They are captured from the official docs and may lag behind — always verify against the [live Volcano Engine docs](https://www.volcengine.com/docs/87772).
+
 ## Features
 
 - **Web Search Tool** - Registers a `doubao_web_search` tool the LLM can call autonomously

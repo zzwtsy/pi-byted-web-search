@@ -1,4 +1,5 @@
-import type { GlobalApiResponse, UnifiedSearchRequest } from "../src/types.ts";
+import type { GlobalApiResponse } from "../src/global-adapter.ts";
+import type { UnifiedSearchRequest } from "../src/types.ts";
 import { describe, expect, it } from "vitest";
 import { globalAdapter } from "../src/global-adapter.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";

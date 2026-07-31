@@ -7,14 +7,62 @@
  * @module
  */
 
+import type { ApiError } from "./errors.ts";
 import type {
   DoubaoSearchConfig,
-  GlobalApiResponse,
   SearchAdapter,
   UnifiedSearchItem,
   UnifiedSearchRequest,
   UnifiedSearchResult,
 } from "./types.ts";
+
+// ============================================================================
+// Global 版 API 原始响应类型（就近放置，仅本适配器消费）
+// ============================================================================
+
+export interface GlobalApiResponse {
+  ResponseMetadata: {
+    RequestId: string;
+    Action?: string;
+    Version?: string;
+    Service?: string;
+    Region?: string;
+    Error?: ApiError;
+  };
+  Result?: {
+    TotalDocCount: number;
+    Documents?: GlobalDocument[];
+    ErrorCode: number;
+    ErrorMsg: string;
+  };
+}
+
+export interface GlobalDocument {
+  Rank: number;
+  Url?: string;
+  Title?: string;
+  Snippet?: GlobalSnippet[];
+  DocumentInfo?: {
+    ContentCharCount?: number;
+    ContentTokenCount?: number;
+    Filetype?: string;
+    PublishTime?: string;
+  };
+  HostInfo?: {
+    Hostname?: string;
+    IconUrl?: string;
+  };
+}
+
+export interface GlobalSnippet {
+  Type?: string;
+  Text?: string;
+  Image?: {
+    Width?: number;
+    Height?: number;
+    ImageUrl?: string;
+  };
+}
 
 export const globalAdapter: SearchAdapter = {
   version: "global",

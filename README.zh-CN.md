@@ -4,6 +4,8 @@
 
 一个 [pi coding agent](https://github.com/earendil-works/pi-mono) 扩展，基于[豆包搜索 API](https://www.volcengine.com/docs/87772)（火山引擎）提供联网搜索能力。
 
+> API 参考快照（Custom/Global 版）存放在 [`docs/api/`](docs/api/)，为官方文档的抓取副本、可能滞后——请以[火山引擎在线文档](https://www.volcengine.com/docs/87772)为准。
+
 ## 功能
 
 - **Web 搜索工具** - 注册 `doubao_web_search` 工具，LLM 可自主调用
