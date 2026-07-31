@@ -116,18 +116,22 @@ Global 版没有 Summary/Content 分层，只有 Snippet，通过 `MaxSnippetLen
 
 ### 3.3 错误码
 
-| 错误码 | 含义 | 可重试其他 Key |
+| 错误码 | 含义 | 策略（2026-07 实现） |
 | -------- | ------ | --------------- |
-| 10400 | 参数错误 | ❌ |
-| 10402 | 非法搜索类型 | ❌ |
-| 10403 | 权限/未开通 | ✅ |
-| 10406 | 免费额度用尽 | ✅ |
-| 10409 | 套餐模式不支持 | ✅ |
-| 10410 | 无可用套餐 | ✅ |
-| 10412 | 套餐额度不足 | ✅ |
-| 10500 | 内部错误 | ❌（可重试同 Key） |
-| 700429 | QPS 限流 | ✅ |
-| 700901 | APIKey 无效 | ✅ |
+| 10400 | 参数错误 | fatal（换 Key 没用） |
+| 10402 | 非法搜索类型 | fatal |
+| 10403 | 权限/未开通 | exhausted → 换 Key |
+| 10406 | 免费额度用尽 | exhausted → 换 Key |
+| 10408 | 功能不可用（Global） | fatal（账号级，换 Key 无意义） |
+| 10409 | 套餐模式不支持 | exhausted → 换 Key |
+| 10410 | 无可用套餐 | exhausted → 换 Key |
+| 10412 | 套餐额度不足 | exhausted → 换 Key |
+| 10500 | 内部错误（官方：可重试） | **retrySameKey**：同 Key 重试 1 次（200ms 退避），仍失败则换 Key |
+| 10501 | 免费额度链路依赖失败（Global，官方：可重试） | **retrySameKey**（同上） |
+| 700429 | QPS 限流 | rateLimited → 冷却后换 Key |
+| 700901 | APIKey 无效 | exhausted → 换 Key |
+
+> 网络连接类错误（fetch failed / ECONNRESET）换 Key 重试；**超时/用户取消不重试**（超时可能已在服务端计费）。
 
 ---
 
@@ -260,8 +264,8 @@ parameters: Type.Object({
 | Filter.NeedContent / NeedUrl | 固定合理默认值 |
 | Industry | 小众场景，配置文件设定 |
 | QueryControl.QueryRewrite | 固定 false（减少耗时），用户配置文件可改 |
-| MaxSnippetLength (Global) | 固定 1000，无需 LLM 决策 |
-| MaxImageCountPerDoc (Global) | 固定 0（LLM 不需要图片），无需 LLM 决策 |
+| MaxSnippetLength (Global) | 固定 1000（配置可调，上限 3000），无需 LLM 决策 |
+| MaxImageCountPerDoc (Global) | **LLM 自主决策**——工具参数 `include_images`（默认 false）映射（2026-07 已实现） |
 
 ### 4.4 返回格式
 
@@ -675,14 +679,16 @@ acquire(version)
   │   ├─ 700429 ──> markRateLimited(key, 60s) ──> 回到 acquire（换下一个 Key）
   │   ├─ 10406/10412 ──> markExhausted(key) ──> 回到 acquire（换下一个 Key）
   │   ├─ 10409 ──> markExhausted(key) ──> 回到 acquire（subscription Key 不支持此版本）
+  │   ├─ 10500/10501 ──> 同 Key 重试 1 次（200ms 退避）──> 仍失败则换下一个 Key
+  │   ├─ 连接类网络错误 ──> 换下一个 Key 重试
   │   ├─ 10400/10402 ──> throw（参数错误，换 Key 没用）
-  │   └─ 10500 ──> throw（内部错误，可重试但不换 Key）
+  │   └─ 超时/用户取消 ──> throw（不重试，超时可能已计费）
   └─ 无可用 Key ──> throw("所有 API Key 均不可用")
 ```
 
 > 注意：`acquire(version)` 会自动跳过不适用的 Key 类型。例如 `acquire("global")` 不会返回 subscription Key，因此正常流程中不会触发 10409。10409 的防护是兜底机制。
 
-最多尝试 `pool.size` 次（每个 Key 各一次），避免无限重试。
+最多尝试 `pool.size` 次（每个 Key 各一次），每个 Key 至多同 Key 重试 1 次，避免无限重试。
 
 ### 5.4 状态查看命令
 
@@ -988,7 +994,7 @@ Custom 版支持 `SearchType=image`。可以:
 | 问题 | 决策 |
 | ------ | ------ |
 | Custom 版默认 ContentFormats | **markdown**（结构更清晰，需验证实际返回效果） |
-| Global 版 MaxImageCountPerDoc | **LLM 自主决策**——暴露为工具参数 `include_images`（默认 false），Global 版映射为 MaxImageCountPerDoc |
+| Global 版 MaxImageCountPerDoc | **已实现（2026-07）**——工具参数 `include_images`（默认 false），Global 版映射为 MaxImageCountPerDoc |
 | 是否需要 search_type=image | **LLM 自主决策**——后续迭代中添加 `image_search` 独立工具（Custom 版 SearchType=image），LLM 可根据需求选择 |
 | 配置文件格式 | **JSON**（pi 生态统一） |
 | 是否支持 Custom/Global 各自独立的 Key 池 | **不支持**--两个版本共用 KeyPool，但 Key 需区分计费类型（postpaid / subscription），Global 版只用 postpaid Key |

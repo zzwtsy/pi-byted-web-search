@@ -75,7 +75,8 @@ describe("globalAdapter.parseResponse", () => {
     expect(result.version).toBe("global");
     expect(result.totalCount).toBe(20);
     expect(result.results).toHaveLength(1);
-    expect(result.unsupportedParams).toEqual(["time_range", "sites", "block_hosts", "content_format"]);
+    // unsupportedParams 由 tool.ts 按实际传入参数计算，适配器不再无条件上报
+    expect(result.unsupportedParams).toBeUndefined();
 
     const item = result.results[0];
     expect(item.title).toBe("标题1");

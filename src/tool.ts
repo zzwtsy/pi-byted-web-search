@@ -59,9 +59,13 @@ export function createWebSearchTool(
 
     parameters: Type.Object({
       query: Type.String({
+        minLength: 1,
+        maxLength: 100, // 对齐官方 Query 1~100 字符约束
         description: "Search query, 1-100 characters. Be specific and include relevant context.",
       }),
-      count: Type.Optional(Type.Number({
+      count: Type.Optional(Type.Integer({
+        minimum: 1,
+        maximum: 10,
         description: "Number of results. Default 5, max 10. Fewer = faster + less tokens.",
       })),
       version: StringEnum(["custom", "global"] as const, {
@@ -71,6 +75,7 @@ export function createWebSearchTool(
         description: "brief: title+snippet. summary: title+summary(default). full: +full content(truncated).",
       }),
       time_range: Type.Optional(Type.String({
+        pattern: "^(OneDay|OneWeek|OneMonth|OneYear|\\d{4}-\\d{2}-\\d{2}\\.\\.\\d{4}-\\d{2}-\\d{2})$",
         description: "OneDay/OneWeek/OneMonth/OneYear or YYYY-MM-DD..YYYY-MM-DD. Custom only.",
       })),
       sites: Type.Optional(Type.String({
@@ -78,6 +83,9 @@ export function createWebSearchTool(
       })),
       block_hosts: Type.Optional(Type.String({
         description: "Exclude domains, pipe-separated. Example: pinterest.com|quora.com",
+      })),
+      include_images: Type.Optional(Type.Boolean({
+        description: "Include up to 3 image snippets per result. Global version only; ignored by Custom. Default: false.",
       })),
     }),
 
@@ -92,11 +100,13 @@ export function createWebSearchTool(
 
       const req: UnifiedSearchRequest = {
         query: params.query,
-        count: Math.min(count, 10),
+        // 防御非法 count（如配置文件中 defaultCount 越界）：封底 1、封顶 10、取整
+        count: Math.min(Math.max(1, Math.round(count)), 10),
         detailLevel,
         ...(params.time_range != null && { timeRange: params.time_range }),
         ...(params.sites != null && { sites: params.sites }),
         ...(params.block_hosts != null && { blockHosts: params.block_hosts }),
+        ...(params.include_images != null && { includeImages: params.include_images }),
         contentFormat: config.contentFormat,
       };
 
@@ -124,6 +134,20 @@ export function createWebSearchTool(
       const outcome = await searchWithKeyPool(pool, adapter, req, config, signal);
       const result = outcome.result;
 
+      // Global 版：按请求中实际出现的参数计算被忽略列表（适配器不再无条件上报）
+      if (version === "global") {
+        // [展示名, req 字段名]：req 使用 camelCase，展示名保持工具参数名
+        const unsupportedMap: Array<[string, keyof UnifiedSearchRequest]> = [
+          ["time_range", "timeRange"],
+          ["sites", "sites"],
+          ["block_hosts", "blockHosts"],
+        ];
+        const unsupported = unsupportedMap
+          .filter(([, reqKey]) => req[reqKey] != null)
+          .map(([name]) => name);
+        result.unsupportedParams = unsupported.length > 0 ? unsupported : undefined;
+      }
+
       // 流式进度：找到结果
       onUpdate?.({
         content: [{ type: "text", text: `找到 ${result.totalCount} 条结果，正在格式化...` }],
@@ -136,7 +160,7 @@ export function createWebSearchTool(
       });
 
       // 格式化
-      const text = formatResults(result, detailLevel);
+      const text = formatResults(result, detailLevel, req.query);
 
       // 构造 details
       const details: WebSearchDetails = {

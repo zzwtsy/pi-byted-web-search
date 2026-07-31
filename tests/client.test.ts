@@ -93,6 +93,125 @@ describe("searchWithKeyPool", () => {
     expect(status.find(s => s.label === "key1")?.status).toBe("rate_limited");
   });
 
+  it("内部错误 10500 同 Key 重试后成功", async () => {
+    mockFetch
+      .mockResolvedValueOnce(makeResponse(errorBody(10500, "inner error")))
+      .mockResolvedValueOnce(makeResponse(successBody()));
+
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    const outcome = await searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG);
+    expect(outcome.keyLabel).toBe("key1");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // 内部错误不标记 Key
+    const status = pool.getStatus();
+    expect(status.find(s => s.label === "key1")?.status).toBe("active");
+  });
+
+  it("内部错误同 Key 重试耗尽后换 Key", async () => {
+    mockFetch
+      .mockResolvedValueOnce(makeResponse(errorBody(10500, "inner")))
+      .mockResolvedValueOnce(makeResponse(errorBody(10500, "inner")))
+      .mockResolvedValueOnce(makeResponse(successBody()));
+
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+      { key: "k2", label: "key2", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    const outcome = await searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG);
+    expect(outcome.keyLabel).toBe("key2");
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("网络连接错误换 Key 重试", async () => {
+    mockFetch
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(makeResponse(successBody()));
+
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+      { key: "k2", label: "key2", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    const outcome = await searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG);
+    expect(outcome.keyLabel).toBe("key2");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("网络错误重试耗尽后抛出", async () => {
+    mockFetch.mockRejectedValue(new TypeError("fetch failed"));
+
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+      { key: "k2", label: "key2", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    await expect(searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG))
+      .rejects
+      .toThrow("网络请求失败");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("超时不换 Key 重试", async () => {
+    const timeoutError = new Error("The operation timed out");
+    timeoutError.name = "TimeoutError";
+    mockFetch.mockRejectedValue(timeoutError);
+
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+      { key: "k2", label: "key2", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    await expect(searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG))
+      .rejects
+      .toThrow("搜索请求超时");
+    // 超时可能已在服务端计费，不重试
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("非 2xx 且带 API 错误体时触发 failover", async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify(errorBody(700429, "rate limited")),
+        { status: 429, headers: { "Content-Type": "application/json" } },
+      ))
+      .mockResolvedValueOnce(makeResponse(successBody()));
+
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+      { key: "k2", label: "key2", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    const outcome = await searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG);
+    expect(outcome.keyLabel).toBe("key2");
+
+    // k1 应被标记为 rate_limited（错误体被解析而非丢弃）
+    const status = pool.getStatus();
+    expect(status.find(s => s.label === "key1")?.status).toBe("rate_limited");
+  });
+
+  it("响应体不是 JSON 时抛出友好错误", async () => {
+    mockFetch.mockResolvedValue(new Response("<html>gateway error</html>", { status: 200 }));
+
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    await expect(searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG))
+      .rejects
+      .toThrow("响应解析失败");
+  });
+
+  it("空 Key 池时提示未配置", async () => {
+    const pool = new KeyPool([]);
+    await expect(searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG))
+      .rejects
+      .toThrow("未配置 API Key");
+  });
+
   it("额度耗尽后切换到下一个 Key", async () => {
     mockFetch
       .mockResolvedValueOnce(makeResponse(errorBody(10406, "quota exhausted")))
@@ -207,7 +326,12 @@ describe("getErrorStrategy", () => {
 
   it("参数错误码返回 fatal", () => {
     expect(getErrorStrategy(ErrorCode.ParamError)).toBe("fatal");
-    expect(getErrorStrategy(ErrorCode.InnerError)).toBe("fatal");
+    expect(getErrorStrategy(ErrorCode.InvalidSearchType)).toBe("fatal");
+  });
+
+  it("内部错误码返回 retrySameKey", () => {
+    expect(getErrorStrategy(ErrorCode.InnerError)).toBe("retrySameKey");
+    expect(getErrorStrategy(ErrorCode.FreeQuotaLinkError)).toBe("retrySameKey");
   });
 
   it("未知错误码默认 fatal", () => {

@@ -1,6 +1,9 @@
 /**
  * Global 版适配器：统一模型 <-> Global API 请求/响应互转。
  *
+ * 注意：Global 不支持的参数（time_range/sites/block_hosts）由 tool.ts 按
+ * 「请求中实际出现」计算 unsupportedParams，不在 parseResponse 中无条件上报。
+ *
  * @module
  */
 
@@ -12,9 +15,6 @@ import type {
   UnifiedSearchRequest,
   UnifiedSearchResult,
 } from "./types.ts";
-
-/** Global 版不支持的参数列表。 */
-const UNSUPPORTED_PARAMS = ["time_range", "sites", "block_hosts", "content_format"];
 
 export const globalAdapter: SearchAdapter = {
   version: "global",
@@ -34,7 +34,7 @@ export const globalAdapter: SearchAdapter = {
     const result = data.Result;
 
     if (!result) {
-      return { totalCount: 0, results: [], version: "global", unsupportedParams: UNSUPPORTED_PARAMS };
+      return { totalCount: 0, results: [], version: "global" };
     }
 
     const items: UnifiedSearchItem[] = (result.Documents ?? []).map((d) => {
@@ -59,7 +59,6 @@ export const globalAdapter: SearchAdapter = {
       totalCount: result.TotalDocCount,
       results: items,
       version: "global",
-      unsupportedParams: UNSUPPORTED_PARAMS,
     };
   },
 };

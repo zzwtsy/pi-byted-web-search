@@ -40,7 +40,15 @@ export default function (pi: ExtensionAPI) {
   });
 
   // 注册 doubao_web_search 工具（通过 getter 传入最新 pool/config 引用）
-  pi.registerTool(createWebSearchTool(() => pool!, () => config));
+  pi.registerTool(createWebSearchTool(
+    () => {
+      if (!pool) {
+        throw new Error("豆包搜索扩展尚未初始化（session_start 未触发），请重试。");
+      }
+      return pool;
+    },
+    () => config,
+  ));
 
   // 注册 /doubao-keys 命令
   pi.registerCommand("doubao-keys", {

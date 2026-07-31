@@ -20,10 +20,30 @@ export interface SearchOutcome {
 }
 
 /**
+ * 可重试的网络错误（连接失败等瞬时故障）。
+ *
+ * 与超时/用户取消区分：这两类不重试——超时可能已在服务端计费，
+ * 免费额度有限，重试有重复扣费风险。
+ */
+class NetworkRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NetworkRequestError";
+  }
+}
+
+/** 内部错误（10500/10501）的同 Key 重试次数上限。 */
+const SAME_KEY_RETRIES = 1;
+/** 同 Key 重试退避间隔（ms），降低 QPS 叠加。 */
+const SAME_KEY_RETRY_DELAY_MS = 200;
+
+/**
  * 带 KeyPool failover 的搜索请求。
  *
- * 遇到限流（700429）或额度耗尽（10406/10412 等）时自动切换到下一个 Key。
- * 不可重试的错误（10400 参数错误、10500 内部错误）直接抛出。
+ * - 限流（700429）/ 额度耗尽（10406/10412 等）→ 标记后换下一个 Key；
+ * - 内部错误（10500/10501，官方标注可重试）→ 同 Key 重试 1 次，仍失败则换 Key；
+ * - 连接类网络错误 → 换下一个 Key 重试；
+ * - 不可重试的错误（10400 参数错误等）→ 直接抛出。
  */
 export async function searchWithKeyPool(
   pool: KeyPool,
@@ -32,6 +52,10 @@ export async function searchWithKeyPool(
   config: DoubaoSearchConfig,
   signal?: AbortSignal,
 ): Promise<SearchOutcome> {
+  if (pool.size === 0) {
+    throw new Error("未配置 API Key。请设置环境变量 DOUBAO_SEARCH_API_KEYS 或 DOUBAO_SEARCH_API_KEY。");
+  }
+
   const maxRetries = pool.size;
   let lastError: Error | null = null;
 
@@ -42,33 +66,59 @@ export async function searchWithKeyPool(
     }
 
     try {
-      const raw = await doRequest(adapter, req, config, keyState.key, signal);
-      return { result: adapter.parseResponse(raw), keyLabel: keyState.label };
-    } catch (err) {
-      lastError = err as Error;
+      // 内层循环：同 Key 重试由 sameKeyRetries 控制，其余失败路径 break 换 Key
+      let sameKeyRetries = SAME_KEY_RETRIES;
+      for (;;) {
+        try {
+          const raw = await doRequest(adapter, req, config, keyState.key, signal);
+          return { result: adapter.parseResponse(raw), keyLabel: keyState.label };
+        } catch (err) {
+          lastError = err as Error;
 
-      // 豆包 API 错误：按策略决定是否换 Key
-      if (err instanceof DoubaoApiError) {
-        const strategy = getErrorStrategy(err.codeN);
+          // 豆包 API 错误：按策略决定处理方式
+          if (err instanceof DoubaoApiError) {
+            const strategy = getErrorStrategy(err.codeN);
 
-        if (strategy === "rateLimited") {
-          pool.markRateLimited(keyState.key, config.rateLimitCooldownMs);
-          continue;
-        }
-        if (strategy === "exhausted") {
-          pool.markExhausted(keyState.key, err.message);
-          continue;
+            if (strategy === "rateLimited") {
+              pool.markRateLimited(keyState.key, config.rateLimitCooldownMs);
+              break; // 外层循环换 Key
+            }
+            if (strategy === "exhausted") {
+              pool.markExhausted(keyState.key, err.message);
+              break; // 外层循环换 Key
+            }
+            if (strategy === "retrySameKey" && sameKeyRetries > 0) {
+              sameKeyRetries--;
+              await sleep(SAME_KEY_RETRY_DELAY_MS);
+              continue; // 同 Key 重试
+            }
+            if (strategy === "retrySameKey") {
+              break; // 同 Key 重试耗尽：换下一个 Key（不标记，非 Key 的问题）
+            }
+          }
+
+          // 连接类网络错误：换 Key 重试（若还有剩余尝试次数）
+          if (err instanceof NetworkRequestError && attempt < maxRetries - 1) {
+            break;
+          }
+
+          // fatal / 超时 / 用户取消 / 网络错误重试耗尽：直接抛出
+          throw err;
         }
       }
-
-      // fatal 或其他错误（网络超时、用户取消等）直接抛出
-      throw err;
+    } finally {
+      // 无论成功、换 Key 还是抛出，都释放 in-flight 计数
+      pool.endUse(keyState.key);
     }
   }
 
   throw new Error(
     `所有 API Key 均不可用。${lastError ? `最后错误: ${lastError.message}` : ""}`,
   );
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /** 单次 HTTP 请求。 */
@@ -107,14 +157,33 @@ async function doRequest(
     if (name === "AbortError") {
       throw new Error("搜索已取消。");
     }
-    throw new Error(`网络请求失败: ${(err as Error).message}`);
+    // 连接类错误（fetch failed / ECONNRESET 等）：瞬时故障，可换 Key 重试
+    throw new NetworkRequestError(`网络请求失败: ${(err as Error).message}`);
   }
 
+  // 非 2xx：先尝试解析 API 错误体（网关/代理可能返回带错误码的 JSON），
+  // 让 failover 与 Key 标记逻辑生效；非 JSON 则回退通用 HTTP 错误。
   if (!response.ok) {
+    try {
+      const raw = await response.json();
+      checkApiError(raw);
+    } catch (err) {
+      if (err instanceof DoubaoApiError) {
+        throw err;
+      }
+      // 其他（非 JSON / 无错误体）：回退
+    }
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
-  const raw = await response.json();
+  let raw: unknown;
+  try {
+    raw = await response.json();
+  } catch {
+    throw new Error(
+      `搜索响应解析失败（HTTP ${response.status}）。服务端返回了非 JSON 内容，请稍后重试。`,
+    );
+  }
   checkApiError(raw);
   return raw;
 }

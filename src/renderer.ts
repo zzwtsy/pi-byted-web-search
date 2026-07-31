@@ -48,12 +48,18 @@ export function renderSearchResult(
   result: { details?: unknown },
   options: { expanded: boolean; isPartial: boolean },
   theme: Theme,
+  context?: { isError?: boolean },
 ): Text {
   const details = result.details as WebSearchDetails | undefined;
 
   // 搜索中
   if (options.isPartial) {
     return new Text(theme.fg("warning", "搜索中..."), 0, 0);
+  }
+
+  // 执行失败（execute 抛错时 pi 仍会调用 renderResult，isError 在 context 中）
+  if (context?.isError) {
+    return new Text(theme.fg("error", "搜索失败"), 0, 0);
   }
 
   // 无结果

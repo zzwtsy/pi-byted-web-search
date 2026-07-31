@@ -29,6 +29,16 @@ function makeResult(overrides: Partial<UnifiedSearchResult> = {}): UnifiedSearch
 }
 
 describe("formatResults", () => {
+  it("输出包含查询词", () => {
+    const text = formatResults(makeResult(), "summary", "测试查询");
+    expect(text).toContain("查询: 测试查询");
+  });
+
+  it("未传 query 时查询行为空且不报错", () => {
+    const text = formatResults(makeResult(), "summary");
+    expect(text).toContain("查询: ");
+  });
+
   it("detail_level=brief 输出紧凑格式", () => {
     const text = formatResults(makeResult(), "brief");
     expect(text).toContain("[1] 标题1");

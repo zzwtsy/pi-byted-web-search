@@ -73,8 +73,31 @@ describe("renderSearchResult", () => {
       { details: makeDetails() },
       { expanded: false, isPartial: true },
       theme,
+      { isError: false },
     );
     expect(fg).toHaveBeenCalledWith("warning", "搜索中...");
+  });
+
+  it("isError 时显示搜索失败（优先于无结果）", () => {
+    const { theme, fg } = mockTheme();
+    renderSearchResult(
+      { details: makeDetails() },
+      { expanded: false, isPartial: false },
+      theme,
+      { isError: true },
+    );
+    expect(fg).toHaveBeenCalledWith("error", "搜索失败");
+  });
+
+  it("isError 时即使无 details 也显示失败", () => {
+    const { theme, fg } = mockTheme();
+    renderSearchResult(
+      { details: undefined },
+      { expanded: false, isPartial: false },
+      theme,
+      { isError: true },
+    );
+    expect(fg).toHaveBeenCalledWith("error", "搜索失败");
   });
 
   it("无结果显示", () => {

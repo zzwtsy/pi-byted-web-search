@@ -15,7 +15,11 @@ vi.mock("../src/config.ts", () => ({
 }));
 
 vi.mock("../src/tool.ts", () => ({
-  createWebSearchTool: vi.fn(() => ({ name: "doubao_web_search", execute: vi.fn() })),
+  createWebSearchTool: vi.fn((getPool?: () => unknown) => ({
+    name: "doubao_web_search",
+    getPool,
+    execute: vi.fn(),
+  })),
 }));
 
 vi.mock("../src/formatter.ts", () => ({
@@ -188,6 +192,29 @@ describe("index.ts 扩展入口", () => {
     await handler?.({}, ctx);
 
     expect(ctx.ui.notify).not.toHaveBeenCalled();
+  });
+
+  it("pool 未初始化时工具 getter 抛出友好错误", async () => {
+    const pi = mockPi();
+    const { default: factory } = await import("../src/index.ts");
+    factory(pi);
+
+    // 取最后一次调用（本测试的工厂闭包），避免与其他测试的 mock.calls 混淆
+    const getPool = vi.mocked(createWebSearchTool).mock.calls.at(-1)?.[0] as () => unknown;
+    expect(getPool).toBeTypeOf("function");
+
+    // session_start 之前调用 → 抛出可操作错误而非 TypeError
+    expect(() => getPool()).toThrow(/尚未初始化/);
+
+    // session_start 之后 → 返回 pool
+    const startHandler = getSessionStartHandler(pi);
+    await startHandler?.({}, mockCtx());
+    expect(getPool()).toBeDefined();
+
+    // session_shutdown 之后 → 再次抛错
+    const shutdownHandler = getSessionShutdownHandler(pi);
+    await shutdownHandler?.({}, {});
+    expect(() => getPool()).toThrow(/尚未初始化/);
   });
 
   it("/doubao-keys 命令在 pool 初始化后显示状态", async () => {

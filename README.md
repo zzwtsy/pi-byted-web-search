@@ -103,16 +103,25 @@ Once configured, the LLM can call `doubao_web_search` automatically when it need
 | Parameter | Type | Default | Description |
 | ----------- | ------ | --------- | ------------- |
 | `query` | string | — | Search query, 1-100 chars |
-| `count` | number | 5 | Number of results (max 10) |
+| `count` | integer | 5 | Number of results (1-10) |
 | `version` | `"custom"` \| `"global"` | `custom` | API version |
 | `detail_level` | `"brief"` \| `"summary"` \| `"full"` | `summary` | Result detail level |
 | `time_range` | string | — | `OneDay` / `OneWeek` / `OneMonth` / `OneYear` / `YYYY-MM-DD..YYYY-MM-DD` (Custom only) |
 | `sites` | string | — | Restrict to domains, pipe-separated (Custom only) |
 | `block_hosts` | string | — | Exclude domains, pipe-separated (Custom only) |
+| `include_images` | boolean | `false` | Include up to 3 image snippets per result (Global only) |
 
 ### Commands
 
 - `/doubao-keys` — Show API key pool status
+
+## Error Handling & Retries
+
+- Rate limits (`700429`) and quota exhaustion (`10406`/`10412`/etc.) automatically fail over to the next API key
+- Internal errors (`10500`/`10501`, documented as retryable by Volcano Engine) retry once on the same key, then fail over
+- Connection-level network errors fail over to the next key; timeouts are **not** retried (the request may have been billed)
+- Parameter errors (`10400` etc.) fail fast with the API error message
+- All keys unavailable → error with per-key status (keys are masked in status output)
 
 ## API Version Comparison
 

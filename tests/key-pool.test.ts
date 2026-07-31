@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { loadKeysFromEnv } from "../src/config.ts";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { loadKeysFromEnv, normalizeConfig } from "../src/config.ts";
 import { KeyPool } from "../src/key-pool.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";
 
@@ -14,6 +14,58 @@ describe("DEFAULT_CONFIG", () => {
     expect(DEFAULT_CONFIG.defaultDetailLevel).toBe("summary");
     expect(DEFAULT_CONFIG.contentFormat).toBe("markdown");
     expect(DEFAULT_CONFIG.requestTimeoutMs).toBe(10_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// config.ts: normalizeConfig
+// ---------------------------------------------------------------------------
+
+describe("normalizeConfig", () => {
+  it("maxSnippetLength 超过 3000 时 clamp", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const c = normalizeConfig({ ...DEFAULT_CONFIG, maxSnippetLength: 5000 });
+    expect(c.maxSnippetLength).toBe(3000);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("maxSnippetLength 非法时回退默认值", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const c = normalizeConfig({ ...DEFAULT_CONFIG, maxSnippetLength: NaN });
+    expect(c.maxSnippetLength).toBe(1000);
+    warn.mockRestore();
+  });
+
+  it("requestTimeoutMs 过小时回退默认值", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const c = normalizeConfig({ ...DEFAULT_CONFIG, requestTimeoutMs: 0 });
+    expect(c.requestTimeoutMs).toBe(10_000);
+  });
+
+  it("authInfoLevel 非 0/1 时回退 0", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const c = normalizeConfig({ ...DEFAULT_CONFIG, authInfoLevel: 2 });
+    expect(c.authInfoLevel).toBe(0);
+  });
+
+  it("defaultCount 越界时 clamp 到 [1,10] 并取整", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(normalizeConfig({ ...DEFAULT_CONFIG, defaultCount: 0 }).defaultCount).toBe(1);
+    expect(normalizeConfig({ ...DEFAULT_CONFIG, defaultCount: 50 }).defaultCount).toBe(10);
+    expect(normalizeConfig({ ...DEFAULT_CONFIG, defaultCount: 4.7 }).defaultCount).toBe(5);
+  });
+
+  it("rateLimitCooldownMs 为负时回退默认值", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const c = normalizeConfig({ ...DEFAULT_CONFIG, rateLimitCooldownMs: -1 });
+    expect(c.rateLimitCooldownMs).toBe(60_000);
+  });
+
+  it("合法配置不被修改", () => {
+    const c = normalizeConfig({ ...DEFAULT_CONFIG, maxSnippetLength: 1000, requestTimeoutMs: 8000 });
+    expect(c.maxSnippetLength).toBe(1000);
+    expect(c.requestTimeoutMs).toBe(8000);
   });
 });
 
@@ -55,6 +107,18 @@ describe("loadKeysFromEnv", () => {
     expect(keys).toHaveLength(2);
     expect(keys[0]).toMatchObject({ key: "cfg-key1", billingType: "postpaid" });
     expect(keys[1]).toMatchObject({ key: "cfg-key2", billingType: "subscription" });
+  });
+
+  it("配置文件空数组不遮蔽环境变量", () => {
+    process.env.DOUBAO_SEARCH_API_KEYS = "env-key1,env-key2";
+    const keys = loadKeysFromEnv({
+      ...DEFAULT_CONFIG,
+      postpaidKeys: [],
+      subscriptionKeys: [],
+    });
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toMatchObject({ key: "env-key1", billingType: "postpaid" });
+    expect(keys[1]).toMatchObject({ key: "env-key2", billingType: "postpaid" });
   });
 
   it("未配置 Key 时返回空数组", () => {
@@ -150,6 +214,51 @@ describe("KeyPool", () => {
     const status = pool.getStatus();
     expect(status[0].key).toBe("very...3456");
     expect(status[0].useCount).toBe(5);
+  });
+
+  it("getStatus 对过短 Key 完全隐藏", () => {
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+    const status = pool.getStatus();
+    expect(status[0].key).toBe("***");
+  });
+
+  it("in-flight 未满时优先选择空闲 Key", () => {
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+      { key: "k2", label: "key2", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    // k1 已有 2 个 in-flight 请求（达到上限）
+    pool.beginUse("k1");
+    pool.beginUse("k1");
+
+    // 应跳过 k1，选择 k2
+    expect(pool.acquire("custom")?.key).toBe("k2");
+
+    // k2 达到上限后，回退到全部候选，避免无谓失败（round-robin 继续轮询）
+    pool.beginUse("k2");
+    pool.beginUse("k2");
+    const fallback = pool.acquire("custom");
+    expect(fallback).not.toBeNull();
+    expect(["k1", "k2"]).toContain(fallback?.key);
+  });
+
+  it("endUse 释放后恢复可选", () => {
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+      { key: "k2", label: "key2", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    pool.beginUse("k1");
+    pool.beginUse("k1");
+    pool.endUse("k1");
+    pool.endUse("k1");
+
+    // k1 in-flight 归零后恢复为候选（round-robin 从头开始）
+    const acquired = pool.acquire("custom");
+    expect(acquired?.key).toBe("k1");
   });
 
   it("size 返回 Key 数量", () => {

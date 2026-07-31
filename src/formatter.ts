@@ -22,13 +22,17 @@ const CONTENT_MAX_CHARS = 5000;
  *
  * 按 detailLevel 选择字段，三层截断（单条 + 总条数 + 总输出）。
  */
-export function formatResults(result: UnifiedSearchResult, detailLevel: DetailLevel): string {
+export function formatResults(
+  result: UnifiedSearchResult,
+  detailLevel: DetailLevel,
+  query?: string,
+): string {
   const lines: string[] = [];
 
   // 头部
   const versionLabel = result.version === "global" ? "Global" : "Custom";
   lines.push(`搜索完成，返回 ${result.results.length} 条结果（豆包搜索 ${versionLabel} 版）`);
-  lines.push(`查询: ${result.unsupportedParams ? "" : ""}${getQueryFromResult(result)}`);
+  lines.push(`查询: ${query ?? ""}`);
   lines.push("");
 
   // 每条结果
@@ -124,19 +128,13 @@ function formatItem(item: UnifiedSearchItem, index: number, detailLevel: DetailL
   return lines.join("\n");
 }
 
-/** 截断文本到指定字符数，超出时加省略号。 */
+/** 截断文本到指定字符数（按码点计数，代理对如 emoji 算 1 字符），超出时加省略号。 */
 function truncateText(text: string, maxChars: number): string {
-  if (text.length <= maxChars) {
+  const chars = Array.from(text);
+  if (chars.length <= maxChars) {
     return text;
   }
-  return `${text.slice(0, maxChars)}...`;
-}
-
-/** 从结果中提取查询词（UnsupportedResult 没有 query 字段，用 placeholder）。 */
-function getQueryFromResult(_result: UnifiedSearchResult): string {
-  // UnifiedSearchResult 没有 query 字段，查询词由 tool.ts 传入
-  // 这里返回空，实际查询词在 tool.ts 中拼接
-  return "";
+  return `${chars.slice(0, maxChars).join("")}...`;
 }
 
 /**

@@ -16,6 +16,7 @@ import {
 /**
  * 加载并合并全局（~/.pi/agent/）和项目（.pi/）配置。
  * 项目配置覆盖全局配置，全局配置覆盖默认值。
+ * 合并后做合法性校验与 clamp，避免越界配置直接透传给 API。
  */
 export function loadConfig(cwd: string): DoubaoSearchConfig {
   const globalPath = join(getAgentDir(), "doubao-search.json");
@@ -24,7 +25,55 @@ export function loadConfig(cwd: string): DoubaoSearchConfig {
   const globalConfig = loadJsonFile(globalPath);
   const projectConfig = loadJsonFile(projectPath);
 
-  return { ...DEFAULT_CONFIG, ...globalConfig, ...projectConfig };
+  return normalizeConfig({ ...DEFAULT_CONFIG, ...globalConfig, ...projectConfig });
+}
+
+/** 校验并修正配置值，越界时 clamp 并告警。 */
+export function normalizeConfig(config: DoubaoSearchConfig): DoubaoSearchConfig {
+  const c: DoubaoSearchConfig = { ...config };
+  const warn = (key: string, value: unknown, fixed: unknown) => {
+    console.warn(`[doubao-search] 配置项 ${key}=${String(value)} 无效，已调整为 ${String(fixed)}`);
+  };
+
+  // maxSnippetLength：Global 版 API 上限 3000
+  if (!Number.isFinite(c.maxSnippetLength) || c.maxSnippetLength < 1) {
+    warn("maxSnippetLength", c.maxSnippetLength, 1000);
+    c.maxSnippetLength = 1000;
+  } else if (c.maxSnippetLength > 3000) {
+    warn("maxSnippetLength", c.maxSnippetLength, 3000);
+    c.maxSnippetLength = 3000;
+  }
+
+  // requestTimeoutMs：过低会立即超时，过高会让取消响应变迟钝
+  if (!Number.isFinite(c.requestTimeoutMs) || c.requestTimeoutMs < 1000) {
+    warn("requestTimeoutMs", c.requestTimeoutMs, 10_000);
+    c.requestTimeoutMs = 10_000;
+  } else if (c.requestTimeoutMs > 60_000) {
+    warn("requestTimeoutMs", c.requestTimeoutMs, 60_000);
+    c.requestTimeoutMs = 60_000;
+  }
+
+  // authInfoLevel：Custom 版仅支持 0（不限制）/ 1（仅非常权威）
+  if (c.authInfoLevel !== 0 && c.authInfoLevel !== 1) {
+    warn("authInfoLevel", c.authInfoLevel, 0);
+    c.authInfoLevel = 0;
+  }
+
+  // defaultCount：工具执行时还会二次 clamp，这里提前修正
+  if (!Number.isFinite(c.defaultCount)) {
+    warn("defaultCount", c.defaultCount, 5);
+    c.defaultCount = 5;
+  } else {
+    c.defaultCount = Math.min(Math.max(1, Math.round(c.defaultCount)), 10);
+  }
+
+  // rateLimitCooldownMs：负值会让限流立即恢复，失去冷却意义
+  if (!Number.isFinite(c.rateLimitCooldownMs) || c.rateLimitCooldownMs < 0) {
+    warn("rateLimitCooldownMs", c.rateLimitCooldownMs, 60_000);
+    c.rateLimitCooldownMs = 60_000;
+  }
+
+  return c;
 }
 
 function loadJsonFile(filePath: string): Partial<DoubaoSearchConfig> {
@@ -67,8 +116,11 @@ function parseKeyWithBilling(raw: string): { key: string; billingType: BillingTy
 export function loadKeysFromEnv(config: DoubaoSearchConfig): KeyState[] {
   const raw: { key: string; billingType: BillingType }[] = [];
 
-  // 优先级 1：配置文件中的 Key
-  if (config.postpaidKeys || config.subscriptionKeys) {
+  // 优先级 1：配置文件中的 Key（按实际数量判断，空数组不遮蔽环境变量）
+  const hasFileKeys
+    = (config.postpaidKeys?.length ?? 0) + (config.subscriptionKeys?.length ?? 0) > 0;
+
+  if (hasFileKeys) {
     for (const k of config.postpaidKeys ?? []) {
       if (k.trim())
         raw.push({ key: k.trim(), billingType: "postpaid" });
