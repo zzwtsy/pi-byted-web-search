@@ -28,4 +28,8 @@ jobs:
       - run: npm run lint
       - run: npm test
 
-      - run: npm publish
+      # 认证：优先使用 NPM_TOKEN（Automation token，方案 A）；
+      # 未配置时回退到 OIDC（方案 B，需 npm 账号绑定 GitHub Actions）
+      - run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
