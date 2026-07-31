@@ -28,7 +28,7 @@ export default function (pi: ExtensionAPI) {
     // 4. 启动检查：未配置 Key 时警告
     if (keys.length === 0 && ctx.hasUI) {
       ctx.ui.notify(
-        "未配置豆包搜索 API Key。请设置环境变量 DOUBAO_SEARCH_API_KEYS 或 DOUBAO_SEARCH_API_KEY。",
+        "No Doubao Search API key configured. Set the DOUBAO_SEARCH_API_KEYS or DOUBAO_SEARCH_API_KEY environment variable.",
         "warning",
       );
     }
@@ -43,7 +43,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool(createWebSearchTool(
     () => {
       if (!pool) {
-        throw new Error("豆包搜索扩展尚未初始化（session_start 未触发），请重试。");
+        throw new Error("Doubao Search extension not initialized (session_start not fired). Please retry.");
       }
       return pool;
     },
@@ -52,7 +52,7 @@ export default function (pi: ExtensionAPI) {
 
   // 注册 /doubao-keys 命令
   pi.registerCommand("doubao-keys", {
-    description: "显示豆包搜索 API Key 池状态",
+    description: "Show Doubao Search API key pool status",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI || pool === null)
         return;

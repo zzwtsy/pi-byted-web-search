@@ -53,7 +53,7 @@ export async function searchWithKeyPool(
   signal?: AbortSignal,
 ): Promise<SearchOutcome> {
   if (pool.size === 0) {
-    throw new Error("未配置 API Key。请设置环境变量 DOUBAO_SEARCH_API_KEYS 或 DOUBAO_SEARCH_API_KEY。");
+    throw new Error("No API key configured. Set the DOUBAO_SEARCH_API_KEYS or DOUBAO_SEARCH_API_KEY environment variable.");
   }
 
   const maxRetries = pool.size;
@@ -113,7 +113,7 @@ export async function searchWithKeyPool(
   }
 
   throw new Error(
-    `所有 API Key 均不可用。${lastError ? `最后错误: ${lastError.message}` : ""}`,
+    `All API keys unavailable.${lastError ? ` Last error: ${lastError.message}` : ""}`,
   );
 }
 
@@ -152,13 +152,13 @@ async function doRequest(
   } catch (err) {
     const name = (err as Error).name;
     if (name === "TimeoutError") {
-      throw new Error("搜索请求超时。可尝试减少 count 或使用更简短的 query 重试。");
+      throw new Error("Search request timed out. Try a smaller count or a shorter query.");
     }
     if (name === "AbortError") {
-      throw new Error("搜索已取消。");
+      throw new Error("Search cancelled.");
     }
     // 连接类错误（fetch failed / ECONNRESET 等）：瞬时故障，可换 Key 重试
-    throw new NetworkRequestError(`网络请求失败: ${(err as Error).message}`);
+    throw new NetworkRequestError(`Network request failed: ${(err as Error).message}`);
   }
 
   // 非 2xx：先尝试解析 API 错误体（网关/代理可能返回带错误码的 JSON），
@@ -181,7 +181,7 @@ async function doRequest(
     raw = await response.json();
   } catch {
     throw new Error(
-      `搜索响应解析失败（HTTP ${response.status}）。服务端返回了非 JSON 内容，请稍后重试。`,
+      `Failed to parse search response (HTTP ${response.status}). The server returned non-JSON content. Please retry.`,
     );
   }
   checkApiError(raw);
@@ -208,5 +208,5 @@ function formatNoKeyError(pool: KeyPool): string {
   const status = pool.getStatus()
     .map(s => `${s.label}=${s.status}`)
     .join(", ");
-  return `所有 API Key 均不可用。Key 状态: ${status}。请等待冷却或补充新 Key。`;
+  return `All API keys unavailable. Key status: ${status}. Wait for cooldown or add new keys.`;
 }

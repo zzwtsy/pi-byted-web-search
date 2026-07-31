@@ -151,7 +151,7 @@ describe("searchWithKeyPool", () => {
 
     await expect(searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG))
       .rejects
-      .toThrow("网络请求失败");
+      .toThrow("Network request failed");
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
@@ -167,7 +167,7 @@ describe("searchWithKeyPool", () => {
 
     await expect(searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG))
       .rejects
-      .toThrow("搜索请求超时");
+      .toThrow("Search request timed out");
     // 超时可能已在服务端计费，不重试
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
@@ -202,14 +202,14 @@ describe("searchWithKeyPool", () => {
 
     await expect(searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG))
       .rejects
-      .toThrow("响应解析失败");
+      .toThrow("Failed to parse search response");
   });
 
   it("空 Key 池时提示未配置", async () => {
     const pool = new KeyPool([]);
     await expect(searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG))
       .rejects
-      .toThrow("未配置 API Key");
+      .toThrow("No API key configured");
   });
 
   it("额度耗尽后切换到下一个 Key", async () => {
@@ -256,7 +256,7 @@ describe("searchWithKeyPool", () => {
 
     await expect(searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG))
       .rejects
-      .toThrow("所有 API Key 均不可用");
+      .toThrow("All API keys unavailable");
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
@@ -271,7 +271,7 @@ describe("searchWithKeyPool", () => {
 
     await expect(searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG))
       .rejects
-      .toThrow("搜索请求超时");
+      .toThrow("Search request timed out");
   });
 
   it("用户取消时抛出友好错误", async () => {
@@ -285,7 +285,7 @@ describe("searchWithKeyPool", () => {
 
     await expect(searchWithKeyPool(pool, customAdapter, baseReq, DEFAULT_CONFIG))
       .rejects
-      .toThrow("搜索已取消");
+      .toThrow("Search cancelled");
   });
 
   it("hTTP 非 200 时抛出错误", async () => {

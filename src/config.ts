@@ -32,7 +32,7 @@ export function loadConfig(cwd: string): DoubaoSearchConfig {
 export function normalizeConfig(config: DoubaoSearchConfig): DoubaoSearchConfig {
   const c: DoubaoSearchConfig = { ...config };
   const warn = (key: string, value: unknown, fixed: unknown) => {
-    console.warn(`[doubao-search] 配置项 ${key}=${String(value)} 无效，已调整为 ${String(fixed)}`);
+    console.warn(`[doubao-search] Invalid config ${key}=${String(value)}, adjusted to ${String(fixed)}`);
   };
 
   // maxSnippetLength：Global 版 API 上限 3000
@@ -82,7 +82,7 @@ function loadJsonFile(filePath: string): Partial<DoubaoSearchConfig> {
   try {
     return JSON.parse(readFileSync(filePath, "utf-8")) as Partial<DoubaoSearchConfig>;
   } catch (e) {
-    console.error(`加载配置失败 ${filePath}: ${e instanceof Error ? e.message : String(e)}`);
+    console.error(`Failed to load config ${filePath}: ${e instanceof Error ? e.message : String(e)}`);
     return {};
   }
 }

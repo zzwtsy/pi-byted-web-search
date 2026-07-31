@@ -31,8 +31,8 @@ export function formatResults(
 
   // 头部
   const versionLabel = result.version === "global" ? "Global" : "Custom";
-  lines.push(`搜索完成，返回 ${result.results.length} 条结果（豆包搜索 ${versionLabel} 版）`);
-  lines.push(`查询: ${query ?? ""}`);
+  lines.push(`Search complete. ${result.results.length} results returned (Doubao Search ${versionLabel})`);
+  lines.push(`Query: ${query ?? ""}`);
   lines.push("");
 
   // 每条结果
@@ -44,14 +44,14 @@ export function formatResults(
 
   // 被忽略的参数提示
   if (result.unsupportedParams && result.unsupportedParams.length > 0) {
-    lines.push(`⚠️ 以下参数在 Global 版中不支持，已被忽略: ${result.unsupportedParams.join(", ")}`);
+    lines.push(`⚠️ Parameters not supported by the Global version were ignored: ${result.unsupportedParams.join(", ")}`);
     lines.push("");
   }
 
   // 截断提示
   if (result.results.length < result.totalCount) {
     lines.push(
-      `⚠️ 部分结果已截断。共找到 ${result.totalCount} 条，返回了 ${result.results.length} 条。`,
+      `⚠️ Results truncated. ${result.totalCount} found, ${result.results.length} returned.`,
     );
     lines.push("");
   }
@@ -66,7 +66,7 @@ export function formatResults(
   if (truncation.truncated) {
     return (
       `${truncation.content
-      }\n\n[输出截断: 显示 ${truncation.outputLines} / ${truncation.totalLines} 行`
+      }\n\n[Output truncated: ${truncation.outputLines} / ${truncation.totalLines} lines shown`
       + ` (${formatSize(truncation.outputBytes)} / ${formatSize(truncation.totalBytes)})]`
     );
   }
@@ -84,7 +84,7 @@ function formatItem(item: UnifiedSearchItem, index: number, detailLevel: DetailL
     // brief: 紧凑格式
     const meta = [
       item.publishTime?.slice(0, 10) ?? "",
-      item.rankScore != null ? `相关度: ${item.rankScore.toFixed(2)}` : "",
+      item.rankScore != null ? `Relevance: ${item.rankScore.toFixed(2)}` : "",
     ].filter(Boolean).join(" | ");
 
     lines.push(`[${index}] ${item.title}`);
@@ -100,13 +100,13 @@ function formatItem(item: UnifiedSearchItem, index: number, detailLevel: DetailL
       metaParts.push(`📅 ${item.publishTime.slice(0, 10)}`);
     }
     if (item.siteName != null) {
-      metaParts.push(`站点: ${item.siteName}`);
+      metaParts.push(`Site: ${item.siteName}`);
     }
     if (item.authInfoDes != null) {
-      metaParts.push(`权威度: ${item.authInfoDes}`);
+      metaParts.push(`Authority: ${item.authInfoDes}`);
     }
     if (item.rankScore != null) {
-      metaParts.push(`相关度: ${item.rankScore.toFixed(2)}`);
+      metaParts.push(`Relevance: ${item.rankScore.toFixed(2)}`);
     }
     if (metaParts.length > 0) {
       lines.push(`    ${metaParts.join(" | ")}`);
@@ -120,7 +120,7 @@ function formatItem(item: UnifiedSearchItem, index: number, detailLevel: DetailL
 
     // full: 正文
     if (detailLevel === "full" && item.content != null) {
-      lines.push(`    📄 正文（截断至 ${CONTENT_MAX_CHARS} 字）:`);
+      lines.push(`    📄 Content (truncated to ${CONTENT_MAX_CHARS} chars):`);
       lines.push(`    ${truncateText(item.content, CONTENT_MAX_CHARS)}`);
     }
   }
@@ -142,7 +142,7 @@ function truncateText(text: string, maxChars: number): string {
  */
 export function formatKeyStatus(states: KeyState[]): string {
   if (states.length === 0) {
-    return "未配置 API Key";
+    return "No API key configured";
   }
 
   const lines: string[] = [];
@@ -156,14 +156,14 @@ export function formatKeyStatus(states: KeyState[]): string {
 
     if (s.status === "rate_limited" && s.rateLimitedUntil != null) {
       const remaining = Math.ceil((s.rateLimitedUntil - Date.now()) / 1000);
-      parts.push(`冷却中（剩余 ${Math.max(0, remaining)}s）`);
+      parts.push(`cooldown (${Math.max(0, remaining)}s left)`);
     }
 
     if (s.lastError != null) {
       parts.push(s.lastError);
     }
 
-    parts.push(`使用 ${s.useCount} 次`);
+    parts.push(`used ${s.useCount} times`);
 
     lines.push(parts.join("  "));
   }

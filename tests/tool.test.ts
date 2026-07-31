@@ -65,7 +65,7 @@ describe("createWebSearchTool", () => {
     const content = result.content[0];
     if (content.type === "text") {
       expect(content.text).toContain("测试标题");
-      expect(content.text).toContain("查询: 测试搜索");
+      expect(content.text).toContain("Query: 测试搜索");
     }
 
     const details = result.details as { query: string; version: string; keyUsed: string };
@@ -92,7 +92,7 @@ describe("createWebSearchTool", () => {
     // 至少调用两次：开始搜索 + 找到结果
     expect(onUpdate).toHaveBeenCalledTimes(2);
     const firstCall = onUpdate.mock.calls[0]?.[0] as { content: Array<{ type: string; text: string }> };
-    expect(firstCall.content[0]?.text).toContain("正在搜索");
+    expect(firstCall.content[0]?.text).toContain("Searching");
 
     spy.mockRestore();
   });
@@ -145,7 +145,7 @@ describe("createWebSearchTool", () => {
 
     const details = result.details as { results: unknown[]; version: string };
     const content = result.content[0] as { type: string; text: string };
-    expect(content.text).not.toContain("已被忽略");
+    expect(content.text).not.toContain("were ignored");
     expect((result.details as { version: string }).version).toBe("global");
     expect(details.results).toBeDefined();
 
@@ -171,7 +171,7 @@ describe("createWebSearchTool", () => {
     );
 
     const content = result.content[0] as { type: string; text: string };
-    expect(content.text).toContain("已被忽略: time_range");
+    expect(content.text).toContain("were ignored: time_range");
     expect(content.text).not.toContain("sites");
 
     spy.mockRestore();

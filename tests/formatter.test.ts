@@ -31,12 +31,12 @@ function makeResult(overrides: Partial<UnifiedSearchResult> = {}): UnifiedSearch
 describe("formatResults", () => {
   it("输出包含查询词", () => {
     const text = formatResults(makeResult(), "summary", "测试查询");
-    expect(text).toContain("查询: 测试查询");
+    expect(text).toContain("Query: 测试查询");
   });
 
   it("未传 query 时查询行为空且不报错", () => {
     const text = formatResults(makeResult(), "summary");
-    expect(text).toContain("查询: ");
+    expect(text).toContain("Query: ");
   });
 
   it("detail_level=brief 输出紧凑格式", () => {
@@ -53,9 +53,9 @@ describe("formatResults", () => {
     expect(text).toContain("[1] 标题1");
     expect(text).toContain("🔗 https://example.com/1");
     expect(text).toContain("📝");
-    expect(text).toContain("站点: 站点1");
-    expect(text).toContain("权威度: 非常权威");
-    expect(text).toContain("相关度: 0.95");
+    expect(text).toContain("Site: 站点1");
+    expect(text).toContain("Authority: 非常权威");
+    expect(text).toContain("Relevance: 0.95");
   });
 
   it("detail_level=full 包含正文", () => {
@@ -69,7 +69,7 @@ describe("formatResults", () => {
       }],
     });
     const text = formatResults(result, "full");
-    expect(text).toContain("📄 正文");
+    expect(text).toContain("📄 Content");
     expect(text).toContain("正文内容");
   });
 
@@ -78,7 +78,7 @@ describe("formatResults", () => {
       results: [{ title: "t", url: "u", snippet: "s" }],
     });
     const text = formatResults(result, "full");
-    expect(text).not.toContain("📄 正文");
+    expect(text).not.toContain("📄 Content");
   });
 
   it("global 版输出 unsupportedParams 提示", () => {
@@ -86,7 +86,7 @@ describe("formatResults", () => {
       makeResult({ version: "global", unsupportedParams: ["time_range", "sites"] }),
       "summary",
     );
-    expect(text).toContain("已被忽略: time_range, sites");
+    expect(text).toContain("were ignored: time_range, sites");
   });
 
   it("结果数小于总数时显示截断提示", () => {
@@ -94,8 +94,8 @@ describe("formatResults", () => {
       makeResult({ totalCount: 20, results: makeResult().results.slice(0, 1) }),
       "summary",
     );
-    expect(text).toContain("共找到 20 条");
-    expect(text).toContain("返回了 1 条");
+    expect(text).toContain("20 found");
+    expect(text).toContain("1 returned");
   });
 
   it("空结果", () => {
@@ -103,7 +103,7 @@ describe("formatResults", () => {
       makeResult({ totalCount: 0, results: [] }),
       "summary",
     );
-    expect(text).toContain("返回 0 条结果");
+    expect(text).toContain("0 results returned");
   });
 
   it("global 版标记", () => {
@@ -119,7 +119,7 @@ describe("formatResults", () => {
 
 describe("formatKeyStatus", () => {
   it("空池", () => {
-    expect(formatKeyStatus([])).toBe("未配置 API Key");
+    expect(formatKeyStatus([])).toBe("No API key configured");
   });
 
   it("正常输出各字段", () => {
@@ -136,7 +136,7 @@ describe("formatKeyStatus", () => {
     expect(text).toContain("[key1]");
     expect(text).toContain("postpaid");
     expect(text).toContain("active");
-    expect(text).toContain("使用 5 次");
+    expect(text).toContain("used 5 times");
   });
 
   it("限流状态显示冷却时间", () => {
@@ -152,7 +152,7 @@ describe("formatKeyStatus", () => {
     ];
     const text = formatKeyStatus(states);
     expect(text).toContain("rate_limited");
-    expect(text).toContain("冷却中");
+    expect(text).toContain("cooldown");
   });
 
   it("耗尽状态显示错误原因", () => {

@@ -157,7 +157,7 @@ describe("index.ts 扩展入口", () => {
     await handler?.({}, ctx);
 
     expect(ctx.ui.notify).toHaveBeenCalledWith(
-      expect.stringContaining("未配置豆包搜索 API Key"),
+      expect.stringContaining("No Doubao Search API key configured"),
       "warning",
     );
   });
@@ -204,7 +204,7 @@ describe("index.ts 扩展入口", () => {
     expect(getPool).toBeTypeOf("function");
 
     // session_start 之前调用 → 抛出可操作错误而非 TypeError
-    expect(() => getPool()).toThrow(/尚未初始化/);
+    expect(() => getPool()).toThrow(/not initialized/);
 
     // session_start 之后 → 返回 pool
     const startHandler = getSessionStartHandler(pi);
@@ -214,7 +214,7 @@ describe("index.ts 扩展入口", () => {
     // session_shutdown 之后 → 再次抛错
     const shutdownHandler = getSessionShutdownHandler(pi);
     await shutdownHandler?.({}, {});
-    expect(() => getPool()).toThrow(/尚未初始化/);
+    expect(() => getPool()).toThrow(/not initialized/);
   });
 
   it("/doubao-keys 命令在 pool 初始化后显示状态", async () => {

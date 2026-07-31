@@ -75,7 +75,7 @@ describe("renderSearchResult", () => {
       theme,
       { isError: false },
     );
-    expect(fg).toHaveBeenCalledWith("warning", "搜索中...");
+    expect(fg).toHaveBeenCalledWith("warning", "Searching...");
   });
 
   it("isError 时显示搜索失败（优先于无结果）", () => {
@@ -86,7 +86,7 @@ describe("renderSearchResult", () => {
       theme,
       { isError: true },
     );
-    expect(fg).toHaveBeenCalledWith("error", "搜索失败");
+    expect(fg).toHaveBeenCalledWith("error", "Search failed");
   });
 
   it("isError 时即使无 details 也显示失败", () => {
@@ -97,7 +97,7 @@ describe("renderSearchResult", () => {
       theme,
       { isError: true },
     );
-    expect(fg).toHaveBeenCalledWith("error", "搜索失败");
+    expect(fg).toHaveBeenCalledWith("error", "Search failed");
   });
 
   it("无结果显示", () => {
@@ -107,7 +107,7 @@ describe("renderSearchResult", () => {
       { expanded: false, isPartial: false },
       theme,
     );
-    expect(fg).toHaveBeenCalledWith("dim", "无结果");
+    expect(fg).toHaveBeenCalledWith("dim", "No results");
   });
 
   it("details 缺失时显示无结果", () => {
@@ -117,7 +117,7 @@ describe("renderSearchResult", () => {
       { expanded: false, isPartial: false },
       theme,
     );
-    expect(fg).toHaveBeenCalledWith("dim", "无结果");
+    expect(fg).toHaveBeenCalledWith("dim", "No results");
   });
 
   it("折叠视图显示结果数和展开提示", () => {
@@ -127,9 +127,9 @@ describe("renderSearchResult", () => {
       { expanded: false, isPartial: false },
       theme,
     );
-    expect(fg).toHaveBeenCalledWith("success", "✓ 2 条结果");
-    expect(fg).toHaveBeenCalledWith("dim", " (Custom版");
-    expect(keyHint).toHaveBeenCalledWith("app.tools.expand", "展开");
+    expect(fg).toHaveBeenCalledWith("success", "✓ 2 results");
+    expect(fg).toHaveBeenCalledWith("dim", " (Custom");
+    expect(keyHint).toHaveBeenCalledWith("app.tools.expand", "expand");
   });
 
   it("global 版标记", () => {
@@ -139,7 +139,7 @@ describe("renderSearchResult", () => {
       { expanded: false, isPartial: false },
       theme,
     );
-    expect(fg).toHaveBeenCalledWith("dim", " (Global版");
+    expect(fg).toHaveBeenCalledWith("dim", " (Global");
   });
 
   it("截断标记", () => {
@@ -149,7 +149,7 @@ describe("renderSearchResult", () => {
       { expanded: false, isPartial: false },
       theme,
     );
-    expect(fg).toHaveBeenCalledWith("warning", " (已截断)");
+    expect(fg).toHaveBeenCalledWith("warning", " (truncated)");
   });
 
   it("展开视图显示全部结果标题和 URL", () => {

@@ -46,6 +46,7 @@ export function createWebSearchTool(
       "Examples:",
       "- \"Python 3.13 release date\"",
       "- \"latest React 19 documentation\"",
+      "- \"Beijing weather today\"",
       "- \"北京今日天气\"",
       "",
       "Results are returned as summaries by default. Use detail_level=\"full\" only when you need complete article content.",
@@ -126,7 +127,7 @@ export function createWebSearchTool(
       };
 
       onUpdate?.({
-        content: [{ type: "text", text: `正在搜索: ${params.query}...` }],
+        content: [{ type: "text", text: `Searching: ${params.query}...` }],
         details: emptyDetails,
       });
 
@@ -150,7 +151,7 @@ export function createWebSearchTool(
 
       // 流式进度：找到结果
       onUpdate?.({
-        content: [{ type: "text", text: `找到 ${result.totalCount} 条结果，正在格式化...` }],
+        content: [{ type: "text", text: `Found ${result.totalCount} results, formatting...` }],
         details: {
           ...emptyDetails,
           totalCount: result.totalCount,

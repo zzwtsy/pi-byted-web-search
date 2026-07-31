@@ -54,23 +54,23 @@ export function renderSearchResult(
 
   // 搜索中
   if (options.isPartial) {
-    return new Text(theme.fg("warning", "搜索中..."), 0, 0);
+    return new Text(theme.fg("warning", "Searching..."), 0, 0);
   }
 
   // 执行失败（execute 抛错时 pi 仍会调用 renderResult，isError 在 context 中）
   if (context?.isError) {
-    return new Text(theme.fg("error", "搜索失败"), 0, 0);
+    return new Text(theme.fg("error", "Search failed"), 0, 0);
   }
 
   // 无结果
   if (details === undefined || details.returnedCount === 0) {
-    return new Text(theme.fg("dim", "无结果"), 0, 0);
+    return new Text(theme.fg("dim", "No results"), 0, 0);
   }
 
   // 折叠视图
-  let text = theme.fg("success", `✓ ${details.returnedCount} 条结果`);
+  let text = theme.fg("success", `✓ ${details.returnedCount} results`);
   const versionLabel = details.version === "global" ? "Global" : "Custom";
-  text += theme.fg("dim", ` (${versionLabel}版`);
+  text += theme.fg("dim", ` (${versionLabel}`);
 
   if (details.timeCostMs != null) {
     text += theme.fg("dim", `, ${details.timeCostMs}ms`);
@@ -79,11 +79,11 @@ export function renderSearchResult(
   text += theme.fg("dim", ")");
 
   if (details.truncated) {
-    text += theme.fg("warning", " (已截断)");
+    text += theme.fg("warning", " (truncated)");
   }
 
   if (!options.expanded) {
-    text += ` (${keyHint("app.tools.expand", "展开")})`;
+    text += ` (${keyHint("app.tools.expand", "expand")})`;
     return new Text(text, 0, 0);
   }
 
