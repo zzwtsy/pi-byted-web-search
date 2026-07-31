@@ -129,7 +129,7 @@ function formatItem(item: UnifiedSearchItem, index: number, detailLevel: DetailL
 }
 
 /** 截断文本到指定字符数（按码点计数，代理对如 emoji 算 1 字符），超出时加省略号。 */
-function truncateText(text: string, maxChars: number): string {
+export function truncateText(text: string, maxChars: number): string {
   const chars = Array.from(text);
   if (chars.length <= maxChars) {
     return text;

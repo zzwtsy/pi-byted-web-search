@@ -87,10 +87,11 @@ function getCommandHandler(pi: ExtensionAPI): { handler: (args: string, ctx: unk
 }
 
 /** 简单 mock ctx */
-function mockCtx(overrides: Record<string, unknown> = {}): { cwd: string; hasUI: boolean; ui: { notify: ReturnType<typeof vi.fn> } } {
+function mockCtx(overrides: Record<string, unknown> = {}): { cwd: string; mode: string; hasUI: boolean; ui: { notify: ReturnType<typeof vi.fn> } } {
   return {
     cwd: "/tmp",
-    hasUI: false,
+    mode: "tui",
+    hasUI: true,
     ui: { notify: vi.fn() },
     ...overrides,
   };
@@ -259,7 +260,7 @@ describe("index.ts 扩展入口", () => {
     await startHandler?.({}, mockCtx());
 
     const cmdOpts = getCommandHandler(pi);
-    const ctx = mockCtx({ hasUI: false });
+    const ctx = mockCtx({ hasUI: false, mode: "print" });
     await cmdOpts!.handler("", ctx);
 
     expect(ctx.ui.notify).not.toHaveBeenCalled();

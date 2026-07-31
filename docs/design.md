@@ -273,7 +273,7 @@ parameters: Type.Object({
 
 **detail_level = summary（默认）时**:
 
-```
+```text
 搜索完成，返回 5 条结果（豆包搜索 Custom 版）
 查询: Python 3.13 release date
 
@@ -296,7 +296,7 @@ parameters: Type.Object({
 
 **detail_level = brief 时**:
 
-```
+```text
 搜索完成，返回 5 条结果（豆包搜索 Custom 版）
 查询: Python 3.13 release date
 
@@ -313,7 +313,7 @@ parameters: Type.Object({
 
 每条结果在 summary 基础上增加 Content 全文（截断到 5000 字），并标注：
 
-```
+```text
 [1] Python 3.13.0 发布 - Python.org
     🔗 https://docs.python.org/3.13/whatsnew/3.13.html
     📅 2024-10-07 | 站点: python.org | 权威度: 非常权威 | 相关度: 0.95
@@ -338,7 +338,7 @@ parameters: Type.Object({
 
 截断时在末尾添加提示:
 
-```
+```text
 ⚠️ 部分结果已截断。共找到 20 条结果，返回了 5 条。完整结果可通过调整 count 参数获取。
 ```
 
@@ -494,7 +494,7 @@ Global 和 Custom 版的 API 差异很大（参数名、响应结构、能力范
 
 **核心思路**：定义统一内部模型，每个版本实现自己的适配器。formatter 和 client 完全版本无关。
 
-```
+```text
 LLM 参数
   │
   ▼
@@ -576,13 +576,15 @@ interface SearchAdapter {
    - `full` → 用 `content`（Custom 有；Global 回退到 `summary`）
 
 2. **不支持的参数静默忽略 + 输出提示**：Global 忽略 `time_range`/`sites`/`block_hosts` 时，在返回结果末尾加提示：
-   ```
+
+   ```text
    ⚠️ 以下参数在 Global 版中不支持，已被忽略: time_range, sites
    ```
 
 3. **client.ts 版本无关**：只负责发 HTTP 请求 + KeyPool failover。URL 和请求体由适配器提供。
 
 4. **Global 版的 Snippet 数组处理**：Global 的 Snippet 是 `{Type, Text/Image}` 数组，混合 text 和 image。适配器将其拼接为纯文本：
+
    ```typescript
    const textSnippets = (d.Snippet ?? [])
      .filter(s => s.Type === "text")
@@ -597,10 +599,12 @@ interface SearchAdapter {
 ### 5.1 配置方式
 
 豆包搜索的 API Key 分为两种计费类型：
+
 - **按量后付费**（postpaid）：按实际调用量计费，Global 和 Custom 版都支持
 - **订阅套餐**（subscription）：预付费套餐，仅 Custom 版支持（Global 版不支持订阅套餐调用）
 
 两种 Key 共用一个 KeyPool，但需要标记类型，以便：
+
 1. Global 版只使用 postpaid Key（subscription Key 调 Global 会报 10409）
 2. Custom 版优先使用 subscription Key（消耗预付费额度），耗尽后回退到 postpaid
 
@@ -625,6 +629,7 @@ DOUBAO_SEARCH_API_KEYS=postpaid:key1,postpaid:key2,subscription:key3
 ```
 
 **加载逻辑**：
+
 - 配置文件的 `postpaidKeys` / `subscriptionKeys` 优先于环境变量
 - 环境变量中无前缀的 Key 默认视为 postpaid
 - 合并为统一的 `KeyState[]`，每个 Key 带有 `billingType` 字段
@@ -651,7 +656,7 @@ interface KeyState {
 `acquire(version)` 按版本和计费类型筛选可用 Key：
 
 | version | 优先级 1 | 优先级 2 |
-|---------|----------|----------|
+| ------- | -------- | -------- |
 | custom | subscription Key（消耗预付费额度） | postpaid Key |
 | global | postpaid Key | ❌（subscription Key 不支持 Global） |
 
@@ -659,7 +664,7 @@ interface KeyState {
 
 **状态流转**:
 
-```
+```text
 active ──(700429 限流)──> rate_limited ──(冷却 60s 后)──> active
 active ──(10406/10412 额度耗尽)──> exhausted（本 session 永久不可用）
 active ──(700901 Key 无效)──> exhausted
@@ -671,7 +676,7 @@ active ──(10409 套餐模式不支持)──> exhausted（仅 subscription K
 
 ### 5.3 Failover 调用流程
 
-```
+```text
 acquire(version)
   │
   ├─ 有可用 Key ──> 发起请求
@@ -694,7 +699,7 @@ acquire(version)
 
 注册 `/doubao-keys` 命令，展示各 Key 状态:
 
-```
+```text
 [1] key1 (a3f...8b2)  postpaid     active         使用 23 次
 [2] key2 (7c1...9d4)  postpaid     rate_limited   冷却中（剩余 42s）  使用 15 次
 [3] key3 (e2b...5f8)  subscription exhausted     套餐额度用尽        使用 500 次
@@ -729,7 +734,7 @@ acquire(version)
 ### 7.1 环境变量
 
 | 变量 | 说明 | 必填 |
-|------|------|------|
+| ---- | ---- | ---- |
 | `DOUBAO_SEARCH_API_KEYS` | 多 API Key，逗号分隔 | 二选一 |
 | `DOUBAO_SEARCH_API_KEY` | 单 API Key | 二选一 |
 
@@ -828,7 +833,7 @@ export default function (pi: ExtensionAPI) {
 
 ## 8. 工程结构
 
-```
+```text
 pi-byted-web-search/
 ├── docs/                              # 已有 API 文档
 │   ├── 豆包搜索产品简介.md
@@ -891,7 +896,7 @@ pi-byted-web-search/
 
 ## 9. 数据流
 
-```
+```text
 LLM 调用 web_search 工具
         │
         ▼

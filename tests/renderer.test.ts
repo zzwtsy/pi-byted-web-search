@@ -4,10 +4,11 @@ import { keyHint } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import { renderSearchCall, renderSearchResult } from "../src/renderer.ts";
 
-// mock keyHint
-vi.mock("@earendil-works/pi-coding-agent", () => ({
-  keyHint: vi.fn((key: string, desc: string) => `[${key}:${desc}]`),
-}));
+// mock keyHint，保留模块其他导出（formatter 依赖 truncateHead 等）
+vi.mock("@earendil-works/pi-coding-agent", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@earendil-works/pi-coding-agent")>();
+  return { ...actual, keyHint: vi.fn((key: string, desc: string) => `[${key}:${desc}]`) };
+});
 
 /** 创建 mock Theme，返回带 spy 的 fg/bold */
 function mockTheme() {
@@ -46,6 +47,21 @@ describe("renderSearchCall", () => {
     const { theme, fg } = mockTheme();
     renderSearchCall({ query: "test", block_hosts: "pinterest.com" }, theme);
     expect(fg).toHaveBeenCalledWith("dim", " -pinterest.com");
+  });
+
+  it("超长 query 截断到 60 字符", () => {
+    const { theme, fg } = mockTheme();
+    const longQuery = "q".repeat(100);
+    renderSearchCall({ query: longQuery }, theme);
+    const expected = `"${"q".repeat(60)}..."`;
+    expect(fg).toHaveBeenCalledWith("accent", expected);
+  });
+
+  it("超长 sites 截断到 30 字符", () => {
+    const { theme, fg } = mockTheme();
+    const longSites = "abcdefghijklmnopqrstuvwxyz0123456789".repeat(3);
+    renderSearchCall({ query: "test", sites: longSites }, theme);
+    expect(fg).toHaveBeenCalledWith("dim", ` @${`${longSites.slice(0, 30)}...`}`);
   });
 });
 
@@ -98,6 +114,33 @@ describe("renderSearchResult", () => {
       { isError: true },
     );
     expect(fg).toHaveBeenCalledWith("error", "Search failed");
+  });
+
+  it("isError 时显示 content 中的真实错误消息", () => {
+    const { theme, fg } = mockTheme();
+    renderSearchResult(
+      {
+        content: [{ type: "text", text: "All API keys unavailable. Key status: key1=exhausted" }],
+        details: undefined,
+      },
+      { expanded: false, isPartial: false },
+      theme,
+      { isError: true },
+    );
+    expect(fg).toHaveBeenCalledWith("error", "All API keys unavailable. Key status: key1=exhausted");
+    expect(fg).not.toHaveBeenCalledWith("error", "Search failed");
+  });
+
+  it("isError 错误消息过长时截断", () => {
+    const { theme, fg } = mockTheme();
+    const longErr = "e".repeat(300);
+    renderSearchResult(
+      { content: [{ type: "text", text: longErr }], details: undefined },
+      { expanded: false, isPartial: false },
+      theme,
+      { isError: true },
+    );
+    expect(fg).toHaveBeenCalledWith("error", `${"e".repeat(120)}...`);
   });
 
   it("无结果显示", () => {
@@ -192,5 +235,50 @@ describe("renderSearchResult", () => {
     );
     const expected = `${"x".repeat(200)}...`;
     expect(fg).toHaveBeenCalledWith("muted", expected);
+  });
+
+  it("展开视图超过 5 条时只显示前 5 条并提示更多", () => {
+    const { theme, fg } = mockTheme();
+    const results = Array.from({ length: 8 }, (_, i) => ({
+      title: `标题${i + 1}`,
+      url: `https://example.com/${i + 1}`,
+      snippet: `短摘要${i + 1}`,
+    }));
+    renderSearchResult(
+      { details: makeDetails({ returnedCount: 8, results }) },
+      { expanded: true, isPartial: false },
+      theme,
+    );
+
+    // 只渲染前 5 条
+    expect(fg).toHaveBeenCalledWith("accent", "[1] 标题1");
+    expect(fg).toHaveBeenCalledWith("accent", "[5] 标题5");
+    expect(fg).not.toHaveBeenCalledWith("accent", "[6] 标题6");
+    // 提示剩余条数
+    expect(fg).toHaveBeenCalledWith("dim", "... 3 more");
+  });
+
+  it("结果不超过 5 条时不显示 more 提示", () => {
+    const { theme, fg } = mockTheme();
+    renderSearchResult(
+      { details: makeDetails() },
+      { expanded: true, isPartial: false },
+      theme,
+    );
+    expect(fg).not.toHaveBeenCalledWith("dim", "... 0 more");
+  });
+
+  it("多行 summary 预览为单行", () => {
+    const { theme, fg } = mockTheme();
+    renderSearchResult(
+      {
+        details: makeDetails({
+          results: [{ title: "t", url: "u", snippet: "s", summary: "第一行\n第二行\n第三行" }],
+        }),
+      },
+      { expanded: true, isPartial: false },
+      theme,
+    );
+    expect(fg).toHaveBeenCalledWith("muted", "第一行 第二行 第三行");
   });
 });

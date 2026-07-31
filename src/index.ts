@@ -54,7 +54,8 @@ export default function (pi: ExtensionAPI) {
   pi.registerCommand("doubao-keys", {
     description: "Show Doubao Search API key pool status",
     handler: async (_args, ctx) => {
-      if (!ctx.hasUI || pool === null)
+      // hasUI 在 RPC 模式同样为 true（见 pi types.d.ts），终端 UI 用 mode 守卫
+      if (ctx.mode !== "tui" || pool === null)
         return;
       ctx.ui.notify(formatKeyStatus(pool.getStatus()), "info");
     },
