@@ -97,7 +97,7 @@ export DOUBAO_SEARCH_API_KEYS=postpaid:key1,subscription:key2
 
 [LLM 调用 doubao_web_search，query="Python 3.13 release date"]
 
-✓ 5 条结果 (custom版, 372ms)
+✓ 5 results (custom, 372ms)
 ```
 
 ### 工具参数
@@ -105,16 +105,25 @@ export DOUBAO_SEARCH_API_KEYS=postpaid:key1,subscription:key2
 | 参数 | 类型 | 默认值 | 说明 |
 | ------ | ------ | -------- | ------ |
 | `query` | string | — | 搜索词，1-100 字符 |
-| `count` | number | 5 | 返回条数（最大 10） |
+| `count` | integer | 5 | 返回条数（1-10） |
 | `version` | `"custom"` \| `"global"` | `custom` | API 版本 |
 | `detail_level` | `"brief"` \| `"summary"` \| `"full"` | `summary` | 结果详情级别 |
 | `time_range` | string | — | `OneDay` / `OneWeek` / `OneMonth` / `OneYear` / `YYYY-MM-DD..YYYY-MM-DD`（仅 Custom） |
 | `sites` | string | — | 限定站点，管道符分隔（仅 Custom） |
 | `block_hosts` | string | — | 屏蔽站点，管道符分隔（仅 Custom） |
+| `include_images` | boolean | `false` | 每条结果附带最多 3 张图片摘要（仅 Global） |
 
 ### 命令
 
-- `/doubao-keys` — 查看 API Key 池状态
+- `/doubao-keys` — 打开 API Key 池状态交互面板（↑/↓ 选择，Esc 关闭，实时刷新）
+
+## 错误处理与重试
+
+- 限流（`700429`）与额度耗尽（`10406`/`10412` 等）自动切换到下一个 API Key
+- 内部错误（`10500`/`10501`，火山引擎文档标注可重试）同 Key 重试 1 次后换 Key
+- 连接类网络错误换 Key 重试；**超时不重试**（请求可能已在服务端计费）
+- 参数错误（`10400` 等）直接失败并返回 API 错误消息
+- 所有 Key 不可用时返回带各 Key 状态的错误（Key 在状态输出中已脱敏）
 
 ## API 版本对比
 

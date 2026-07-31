@@ -115,7 +115,7 @@ Once configured, the LLM can call `doubao_web_search` automatically when it need
 
 ### Commands
 
-- `/doubao-keys` — Show API key pool status
+- `/doubao-keys` — Open the interactive API key pool status panel (↑/↓ to select, Esc to close, live refresh)
 
 ## Error Handling & Retries
 
