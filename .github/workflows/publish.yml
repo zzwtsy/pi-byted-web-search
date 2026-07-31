@@ -28,8 +28,7 @@ jobs:
       - run: npm run lint
       - run: npm test
 
-      # 认证：优先使用 NPM_TOKEN（Automation token，方案 A）；
-      # 未配置时回退到 OIDC（方案 B，需 npm 账号绑定 GitHub Actions）
-      - run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # OIDC Trusted Publishing（npm 2025-12 起 classic token 已吊销，
+      # 2026 官方推荐路径）。注意：不要设置 NODE_AUTH_TOKEN——
+      # 空 token 会遮蔽 OIDC 认证。需先在 npmjs.com 配置 Trusted Publisher。
+      - run: npm publish --provenance --access public
