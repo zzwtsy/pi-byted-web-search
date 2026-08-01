@@ -93,11 +93,11 @@ function formatItem(item: UnifiedSearchItem, index: number, detailLevel: DetailL
   } else {
     // summary / full: 详细格式
     lines.push(`[${index}] ${item.title}`);
-    lines.push(`    🔗 ${item.url}`);
+    lines.push(`    ${item.url}`);
 
     const metaParts: string[] = [];
     if (item.publishTime != null) {
-      metaParts.push(`📅 ${item.publishTime.slice(0, 10)}`);
+      metaParts.push(item.publishTime.slice(0, 10));
     }
     if (item.siteName != null) {
       metaParts.push(`Site: ${item.siteName}`);
@@ -115,12 +115,12 @@ function formatItem(item: UnifiedSearchItem, index: number, detailLevel: DetailL
     // 摘要
     const summaryText = item.summary ?? item.snippet;
     if (summaryText != null) {
-      lines.push(`    📝 ${truncateText(summaryText, SUMMARY_MAX_CHARS)}`);
+      lines.push(`    Summary: ${truncateText(summaryText, SUMMARY_MAX_CHARS)}`);
     }
 
     // full: 正文
     if (detailLevel === "full" && item.content != null) {
-      lines.push(`    📄 Content (truncated to ${CONTENT_MAX_CHARS} chars):`);
+      lines.push(`    Content (truncated to ${CONTENT_MAX_CHARS} chars):`);
       lines.push(`    ${truncateText(item.content, CONTENT_MAX_CHARS)}`);
     }
   }

@@ -51,8 +51,8 @@ describe("formatResults", () => {
   it("detail_level=summary 输出详细格式", () => {
     const text = formatResults(makeResult(), "summary");
     expect(text).toContain("[1] 标题1");
-    expect(text).toContain("🔗 https://example.com/1");
-    expect(text).toContain("📝");
+    expect(text).toContain("https://example.com/1");
+    expect(text).toContain("Summary:");
     expect(text).toContain("Site: 站点1");
     expect(text).toContain("Authority: 非常权威");
     expect(text).toContain("Relevance: 0.95");
@@ -69,7 +69,7 @@ describe("formatResults", () => {
       }],
     });
     const text = formatResults(result, "full");
-    expect(text).toContain("📄 Content");
+    expect(text).toContain("Content");
     expect(text).toContain("正文内容");
   });
 
