@@ -120,10 +120,15 @@ Once configured, the LLM can call `doubao_web_search` automatically when it need
 ## Error Handling & Retries
 
 - Rate limits (`700429`) and quota exhaustion (`10406`/`10412`/etc.) automatically fail over to the next API key
-- Internal errors (`10500`/`10501`, documented as retryable by Volcano Engine) retry once on the same key, then fail over
+- Internal errors (`10500`/`10501`, documented as retryable by Volcano Engine) retry once on the same key with exponential backoff + jitter, then fail over
 - Connection-level network errors fail over to the next key; timeouts are **not** retried (the request may have been billed)
 - Parameter errors (`10400` etc.) fail fast with the API error message
 - All keys unavailable → error with per-key status (keys are masked in status output)
+- User cancellation (Esc) returns a friendly message instead of an error
+
+## Caching
+
+Search results are cached in-memory with a configurable TTL (`cacheTtlMs`, default 5 minutes). Repeated searches with identical parameters return cached results instantly without consuming API quota. Set `cacheTtlMs` to `0` to disable caching.
 
 ## API Version Comparison
 

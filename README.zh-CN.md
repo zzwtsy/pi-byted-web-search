@@ -83,10 +83,13 @@ export DOUBAO_SEARCH_API_KEYS=postpaid:key1,subscription:key2
   "maxSnippetLength": 1000,
   "requestTimeoutMs": 10000,
   "rateLimitCooldownMs": 60000,
+  "cacheTtlMs": 300000,
   "postpaidKeys": ["key1"],
   "subscriptionKeys": ["key2"]
 }
 ```
+
+> **优先级**：环境变量 > 项目配置文件 > 全局配置文件 > 默认值。环境变量中的 API Key 优先于配置文件。
 
 ## 使用
 
@@ -120,10 +123,15 @@ export DOUBAO_SEARCH_API_KEYS=postpaid:key1,subscription:key2
 ## 错误处理与重试
 
 - 限流（`700429`）与额度耗尽（`10406`/`10412` 等）自动切换到下一个 API Key
-- 内部错误（`10500`/`10501`，火山引擎文档标注可重试）同 Key 重试 1 次后换 Key
+- 内部错误（`10500`/`10501`，火山引擎文档标注可重试）同 Key 重试 1 次（指数退避 + 抖动）后换 Key
 - 连接类网络错误换 Key 重试；**超时不重试**（请求可能已在服务端计费）
 - 参数错误（`10400` 等）直接失败并返回 API 错误消息
 - 所有 Key 不可用时返回带各 Key 状态的错误（Key 在状态输出中已脱敏）
+- 用户取消（Esc）返回友好提示而非错误
+
+## 缓存
+
+搜索结果在内存中缓存，TTL 可配置（`cacheTtlMs`，默认 5 分钟）。相同参数的重复搜索直接返回缓存结果，不消耗 API 额度。设 `cacheTtlMs` 为 `0` 可禁用缓存。
 
 ## API 版本对比
 
