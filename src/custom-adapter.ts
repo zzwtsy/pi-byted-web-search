@@ -64,7 +64,8 @@ export const customAdapter: SearchAdapter = {
       SearchType: "web",
       Count: Math.min(req.count, 50),
       Filter: {
-        NeedContent: false,
+        // full 详情需要正文：仅返回有正文的结果，确保 Content 字段可用
+        NeedContent: req.detailLevel === "full",
         NeedUrl: true,
         ...(req.sites != null && { Sites: req.sites }),
         ...(req.blockHosts != null && { BlockHosts: req.blockHosts }),

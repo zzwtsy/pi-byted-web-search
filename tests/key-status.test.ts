@@ -75,7 +75,7 @@ describe("KeyStatusComponent", () => {
     expect(errCall).toBeDefined();
   });
 
-  it("↑/↓ 循环选择并失效缓存", () => {
+  it("↑/↓ 循环选择", () => {
     const { theme } = mockTheme();
     const states = [makeState(), makeState({ key: "efgh...stuv" })];
     const comp = new KeyStatusComponent(() => states, theme, vi.fn());
@@ -119,17 +119,18 @@ describe("KeyStatusComponent", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("相同宽度下命中缓存", () => {
+  it("状态变化时实时刷新（live refresh）", () => {
     const { theme } = mockTheme();
-    const comp = new KeyStatusComponent(() => [makeState()], theme, vi.fn());
+    let states = [makeState({ status: "active" })];
+    const comp = new KeyStatusComponent(() => states, theme, vi.fn());
 
     const first = comp.render(80);
-    const second = comp.render(80);
-    expect(second).toBe(first);
+    expect(first.join("\n")).toContain("active");
 
-    // invalidate 后重新渲染（新数组）
-    comp.invalidate();
-    const third = comp.render(80);
-    expect(third).not.toBe(first);
+    // 模拟限流冷却到期 / 新失败等状态变化
+    states = [makeState({ status: "exhausted", lastError: "额度耗尽" })];
+    const second = comp.render(80);
+    expect(second.join("\n")).toContain("exhausted");
+    expect(second).not.toBe(first);
   });
 });

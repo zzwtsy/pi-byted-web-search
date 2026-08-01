@@ -26,8 +26,6 @@ export class KeyStatusComponent {
   private theme: Theme;
   private onClose: () => void;
   private selected = 0;
-  private cachedWidth?: number;
-  private cachedLines?: string[];
 
   constructor(getStatus: () => KeyState[], theme: Theme, onClose: () => void) {
     this.getStatus = getStatus;
@@ -42,20 +40,14 @@ export class KeyStatusComponent {
 
     if (matchesKey(data, Key.up)) {
       this.selected = (this.selected - 1 + states.length) % states.length;
-      this.invalidate();
     } else if (matchesKey(data, Key.down)) {
       this.selected = (this.selected + 1) % states.length;
-      this.invalidate();
     } else if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
       this.onClose();
     }
   }
 
   render(width: number): string[] {
-    if (this.cachedLines && this.cachedWidth === width) {
-      return this.cachedLines;
-    }
-
     const th = this.theme;
     const lines: string[] = [];
     const states = this.getStatus();
@@ -98,15 +90,11 @@ export class KeyStatusComponent {
 
     lines.push("");
 
-    this.cachedWidth = width;
-    this.cachedLines = lines;
     return lines;
   }
 
-  invalidate(): void {
-    this.cachedWidth = undefined;
-    this.cachedLines = undefined;
-  }
+  /** Component 接口要求；无缓存可失效，空实现。 */
+  invalidate(): void {}
 }
 
 /** Key 状态的颜色化文本。 */

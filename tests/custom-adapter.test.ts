@@ -56,6 +56,19 @@ describe("customAdapter.buildRequest", () => {
     const body = customAdapter.buildRequest(baseReq, { ...DEFAULT_CONFIG, authInfoLevel: 1 });
     expect(body).toMatchObject({ Filter: { AuthInfoLevel: 1 } });
   });
+
+  it("detail_level=full 时 NeedContent=true", () => {
+    const body = customAdapter.buildRequest({ ...baseReq, detailLevel: "full" }, DEFAULT_CONFIG);
+    expect(body).toMatchObject({ Filter: { NeedContent: true } });
+  });
+
+  it("detail_level=summary/brief 时 NeedContent=false", () => {
+    const summaryBody = customAdapter.buildRequest(baseReq, DEFAULT_CONFIG);
+    expect(summaryBody).toMatchObject({ Filter: { NeedContent: false } });
+
+    const briefBody = customAdapter.buildRequest({ ...baseReq, detailLevel: "brief" }, DEFAULT_CONFIG);
+    expect(briefBody).toMatchObject({ Filter: { NeedContent: false } });
+  });
 });
 
 describe("customAdapter.parseResponse", () => {
