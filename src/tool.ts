@@ -4,10 +4,12 @@
  * @module
  */
 
+import type { TtlCache } from "./cache.ts";
 import type { KeyPool } from "./key-pool.ts";
 import type {
   DoubaoSearchConfig,
   UnifiedSearchRequest,
+  UnifiedSearchResult,
   WebSearchDetails,
 } from "./types.ts";
 import { StringEnum } from "@earendil-works/pi-ai";
@@ -15,6 +17,7 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { searchWithKeyPool } from "./client.ts";
 import { customAdapter } from "./custom-adapter.ts";
+import { SearchError } from "./errors.ts";
 import { formatResults, truncateText } from "./formatter.ts";
 import { globalAdapter } from "./global-adapter.ts";
 import { renderSearchCall, renderSearchResult } from "./renderer.ts";
@@ -22,15 +25,16 @@ import { renderSearchCall, renderSearchResult } from "./renderer.ts";
 /**
  * 创建 doubao_web_search 工具。
  *
- * 通过工厂函数注入 pool/config 的 getter，确保 execute 时拿到最新引用。
+ * 通过工厂函数注入 pool/config/cache 的 getter，确保 execute 时拿到最新引用。
  */
 export function createWebSearchTool(
   getPool: () => KeyPool,
   getConfig: () => DoubaoSearchConfig,
+  getCache: () => TtlCache<UnifiedSearchResult> | undefined,
 ) {
   return defineTool({
     name: "doubao_web_search",
-    label: "Web Search",
+    label: "Doubao Web Search",
     description: [
       "Search the web for current information using Doubao Search API.",
       "",
@@ -114,6 +118,30 @@ export function createWebSearchTool(
       // 选择适配器
       const adapter = version === "global" ? globalAdapter : customAdapter;
 
+      // 缓存查找
+      const cacheKey = buildCacheKey(req);
+      const cache = getCache();
+      const cachedResult = cache?.get(cacheKey);
+      if (cachedResult != null) {
+        const text = formatResults(cachedResult, detailLevel, req.query);
+        const details: WebSearchDetails = {
+          query: params.query,
+          version,
+          totalCount: cachedResult.totalCount,
+          returnedCount: cachedResult.results.length,
+          detailLevel,
+          truncated: cachedResult.results.length < cachedResult.totalCount,
+          timeCostMs: cachedResult.timeCostMs,
+          keyUsed: "cache",
+          results: cachedResult.results,
+          cached: true,
+        };
+        return {
+          content: [{ type: "text", text }],
+          details,
+        };
+      }
+
       // 流式进度：开始搜索
       const emptyDetails: WebSearchDetails = {
         query: params.query,
@@ -132,23 +160,35 @@ export function createWebSearchTool(
       });
 
       // 执行搜索（换 Key 重试时通过 onRetry 推送流式进度）
-      const outcome = await searchWithKeyPool(
-        pool,
-        adapter,
-        req,
-        config,
-        signal,
-        (info) => {
-          onUpdate?.({
-            content: [{
-              type: "text",
-              text: `Retrying with key ${info.keyLabel} (attempt ${info.attempt}): ${truncateText(info.reason, 100)}`,
-            }],
-            // 类型要求完整 AgentToolResult；isPartial 渲染忽略 details 内容
-            details: emptyDetails,
-          });
-        },
-      );
+      let outcome;
+      try {
+        outcome = await searchWithKeyPool(
+          pool,
+          adapter,
+          req,
+          config,
+          signal,
+          (info) => {
+            onUpdate?.({
+              content: [{
+                type: "text",
+                text: `Retrying with key ${info.keyLabel} (attempt ${info.attempt}): ${truncateText(info.reason, 100)}`,
+              }],
+              // 类型要求完整 AgentToolResult；isPartial 渲染忽略 details 内容
+              details: emptyDetails,
+            });
+          },
+        );
+      } catch (err) {
+        // 用户取消：不标记为错误，返回说明文本
+        if (err instanceof SearchError && err.code === "aborted") {
+          return {
+            content: [{ type: "text", text: "The web search was cancelled." }],
+            details: { ...emptyDetails, cancelled: true },
+          };
+        }
+        throw err;
+      }
       const result = outcome.result;
 
       // Global 版：按请求中实际出现的参数计算被忽略列表（适配器不再无条件上报）
@@ -179,6 +219,9 @@ export function createWebSearchTool(
       // 格式化
       const text = formatResults(result, detailLevel, req.query);
 
+      // 缓存写入
+      cache?.set(cacheKey, result);
+
       // 构造 details
       const details: WebSearchDetails = {
         query: params.query,
@@ -201,4 +244,19 @@ export function createWebSearchTool(
     renderCall: renderSearchCall,
     renderResult: renderSearchResult,
   });
+}
+
+/** 构造缓存 key：版本 + count + detailLevel + query + 过滤参数。 */
+function buildCacheKey(req: UnifiedSearchRequest): string {
+  const parts = [
+    req.query,
+    String(req.count),
+    req.detailLevel,
+    req.contentFormat,
+    req.timeRange ?? "",
+    req.sites ?? "",
+    req.blockHosts ?? "",
+    req.includeImages ? "1" : "0",
+  ];
+  return parts.join("\0");
 }

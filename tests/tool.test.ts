@@ -1,5 +1,7 @@
 import type { UnifiedSearchResult } from "../src/types.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { TtlCache } from "../src/cache.ts";
+import { SearchError } from "../src/errors.ts";
 import { KeyPool } from "../src/key-pool.ts";
 import { createWebSearchTool } from "../src/tool.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";
@@ -32,7 +34,7 @@ function successResult(overrides: Partial<UnifiedSearchResult> = {}): UnifiedSea
 describe("createWebSearchTool", () => {
   it("工具定义基本属性", () => {
     const pool = new KeyPool([]);
-    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG);
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => undefined);
     expect(tool.name).toBe("doubao_web_search");
     expect(tool.label).toBe("Web Search");
     expect(tool.promptSnippet).toBeDefined();
@@ -51,7 +53,7 @@ describe("createWebSearchTool", () => {
     const spy = vi.spyOn(mockModule, "searchWithKeyPool")
       .mockResolvedValue(mockOutcome(successResult()));
 
-    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG);
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => undefined);
     const result = await tool.execute(
       "call-1",
       { query: "测试搜索" },
@@ -86,7 +88,7 @@ describe("createWebSearchTool", () => {
       .mockResolvedValue(mockOutcome(successResult()));
 
     const onUpdate = vi.fn();
-    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG);
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => undefined);
     await tool.execute("call-1", { query: "test" }, undefined, onUpdate, {} as never);
 
     // 至少调用两次：开始搜索 + 找到结果
@@ -106,7 +108,7 @@ describe("createWebSearchTool", () => {
     const spy = vi.spyOn(mockModule, "searchWithKeyPool")
       .mockResolvedValue(mockOutcome(successResult({ version: "global" })));
 
-    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG);
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => undefined);
     const result = await tool.execute(
       "call-1",
       { query: "test", version: "global" },
@@ -134,7 +136,7 @@ describe("createWebSearchTool", () => {
     const spy = vi.spyOn(mockModule, "searchWithKeyPool")
       .mockResolvedValue(mockOutcome(successResult({ version: "global" })));
 
-    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG);
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => undefined);
     const result = await tool.execute(
       "call-1",
       { query: "test", version: "global" },
@@ -161,7 +163,7 @@ describe("createWebSearchTool", () => {
     const spy = vi.spyOn(mockModule, "searchWithKeyPool")
       .mockResolvedValue(mockOutcome(successResult({ version: "global" })));
 
-    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG);
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => undefined);
     const result = await tool.execute(
       "call-1",
       { query: "test", version: "global", time_range: "OneWeek" },
@@ -186,7 +188,7 @@ describe("createWebSearchTool", () => {
     const spy = vi.spyOn(mockModule, "searchWithKeyPool")
       .mockResolvedValue(mockOutcome(successResult({ version: "global" })));
 
-    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG);
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => undefined);
     await tool.execute(
       "call-1",
       { query: "test", version: "global", include_images: true },
@@ -214,7 +216,7 @@ describe("createWebSearchTool", () => {
     const spy = vi.spyOn(mockModule, "searchWithKeyPool")
       .mockResolvedValue(mockOutcome(successResult()));
 
-    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG);
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => undefined);
     await tool.execute("call-1", { query: "test", count: 50 }, undefined, undefined, {} as never);
 
     const passedReq = spy.mock.calls[0][2];
@@ -233,11 +235,11 @@ describe("createWebSearchTool", () => {
       .mockResolvedValue(mockOutcome(successResult()));
 
     // defaultCount = 0（下限）与非整数（取整）
-    const toolLow = createWebSearchTool(() => pool, () => ({ ...DEFAULT_CONFIG, defaultCount: 0 }));
+    const toolLow = createWebSearchTool(() => pool, () => ({ ...DEFAULT_CONFIG, defaultCount: 0 }), () => undefined);
     await toolLow.execute("call-1", { query: "test" }, undefined, undefined, {} as never);
     expect(spy.mock.calls[0][2].count).toBe(1);
 
-    const toolFloat = createWebSearchTool(() => pool, () => ({ ...DEFAULT_CONFIG, defaultCount: 4.7 }));
+    const toolFloat = createWebSearchTool(() => pool, () => ({ ...DEFAULT_CONFIG, defaultCount: 4.7 }), () => undefined);
     await toolFloat.execute("call-1", { query: "test" }, undefined, undefined, {} as never);
     expect(spy.mock.calls[1][2].count).toBe(5);
 
@@ -257,7 +259,7 @@ describe("createWebSearchTool", () => {
       });
 
     const onUpdate = vi.fn();
-    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG);
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => undefined);
     await tool.execute("call-1", { query: "test" }, undefined, onUpdate, {} as never);
 
     // 3 次更新：开始搜索 + 换 Key 重试 + 找到结果
@@ -271,7 +273,7 @@ describe("createWebSearchTool", () => {
 
   it("参数 schema 携带约束（min/max/pattern）", () => {
     const pool = new KeyPool([]);
-    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG);
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => undefined);
 
     const schema = tool.parameters as {
       properties: {
@@ -287,5 +289,53 @@ describe("createWebSearchTool", () => {
     expect(schema.properties.count?.minimum).toBe(1);
     expect(schema.properties.count?.maximum).toBe(10);
     expect(schema.properties.time_range?.pattern).toBeDefined();
+  });
+
+  it("缓存命中时跳过 API 调用", async () => {
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    const mockModule = await import("../src/client.ts");
+    const spy = vi.spyOn(mockModule, "searchWithKeyPool")
+      .mockResolvedValue(mockOutcome(successResult()));
+
+    const cache = new TtlCache<UnifiedSearchResult>(60_000);
+    // 预填充缓存
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => cache);
+
+    // 首次调用：miss，走 API
+    await tool.execute("call-1", { query: "test" }, undefined, undefined, {} as never);
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    // 第二次调用：hit，跳过 API
+    const result = await tool.execute("call-2", { query: "test" }, undefined, undefined, {} as never);
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    const details = result.details as { cached?: boolean };
+    expect(details.cached).toBe(true);
+
+    spy.mockRestore();
+  });
+
+  it("用户取消时返回结果而非抛错", async () => {
+    const pool = new KeyPool([
+      { key: "k1", label: "key1", billingType: "postpaid", status: "active", useCount: 0 },
+    ]);
+
+    const mockModule = await import("../src/client.ts");
+    const spy = vi.spyOn(mockModule, "searchWithKeyPool")
+      .mockRejectedValue(new SearchError("Search cancelled.", "aborted"));
+
+    const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => undefined);
+    const result = await tool.execute("call-1", { query: "test" }, undefined, undefined, {} as never);
+
+    const content = result.content[0] as { type: string; text: string };
+    expect(content.text).toContain("cancelled");
+
+    const details = result.details as { cancelled?: boolean };
+    expect(details.cancelled).toBe(true);
+
+    spy.mockRestore();
   });
 });

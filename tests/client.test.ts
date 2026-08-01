@@ -2,7 +2,7 @@ import type { UnifiedSearchRequest } from "../src/types.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { searchWithKeyPool } from "../src/client.ts";
 import { customAdapter } from "../src/custom-adapter.ts";
-import { DoubaoApiError, ErrorCode, getErrorStrategy } from "../src/errors.ts";
+import { DoubaoApiError, ErrorCode, getErrorStrategy, SearchError } from "../src/errors.ts";
 import { KeyPool } from "../src/key-pool.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";
 
@@ -369,5 +369,20 @@ describe("getErrorStrategy", () => {
 
   it("未知错误码默认 fatal", () => {
     expect(getErrorStrategy(99999)).toBe("fatal");
+  });
+});
+
+describe("SearchError", () => {
+  it("携带 code", () => {
+    const err = new SearchError("Search cancelled.", "aborted");
+    expect(err.code).toBe("aborted");
+    expect(err.message).toBe("Search cancelled.");
+    expect(err.name).toBe("SearchError");
+    expect(err instanceof Error).toBe(true);
+  });
+
+  it("超时错误携带 timeout code", () => {
+    const err = new SearchError("Request timed out", "timeout");
+    expect(err.code).toBe("timeout");
   });
 });

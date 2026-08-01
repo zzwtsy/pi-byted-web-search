@@ -14,7 +14,7 @@ vi.mock("../src/config.ts", () => ({
 }));
 
 vi.mock("../src/tool.ts", () => ({
-  createWebSearchTool: vi.fn((getPool?: () => unknown) => ({
+  createWebSearchTool: vi.fn((getPool?: () => unknown, _getConfig?: () => unknown, _getCache?: () => unknown) => ({
     name: "doubao_web_search",
     getPool,
     execute: vi.fn(),

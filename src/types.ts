@@ -19,7 +19,9 @@ export interface DoubaoSearchConfig {
   maxSnippetLength: number;
   requestTimeoutMs: number;
   rateLimitCooldownMs: number;
-  /** 配置文件中指定的 Key（优先于环境变量）。 */
+  /** 搜索结果缓存 TTL（毫秒），0 = 禁用。 */
+  cacheTtlMs: number;
+  /** 配置文件中指定的 Key（环境变量优先于配置文件）。 */
   postpaidKeys?: string[];
   subscriptionKeys?: string[];
 }
@@ -35,6 +37,7 @@ export const DEFAULT_CONFIG: DoubaoSearchConfig = {
   maxSnippetLength: 1000,
   requestTimeoutMs: 10_000,
   rateLimitCooldownMs: 60_000,
+  cacheTtlMs: 300_000,
 };
 
 // ============================================================================
@@ -123,6 +126,10 @@ export interface WebSearchDetails {
   timeCostMs?: number;
   keyUsed: string;
   results: UnifiedSearchItem[];
+  /** 缓存命中。 */
+  cached?: boolean;
+  /** 用户取消。 */
+  cancelled?: boolean;
 }
 
 // ============================================================================

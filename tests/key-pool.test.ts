@@ -67,6 +67,23 @@ describe("normalizeConfig", () => {
     expect(c.maxSnippetLength).toBe(1000);
     expect(c.requestTimeoutMs).toBe(8000);
   });
+
+  it("cacheTtlMs 非法时回退默认值", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(normalizeConfig({ ...DEFAULT_CONFIG, cacheTtlMs: -1 }).cacheTtlMs).toBe(300_000);
+    expect(normalizeConfig({ ...DEFAULT_CONFIG, cacheTtlMs: NaN }).cacheTtlMs).toBe(300_000);
+  });
+
+  it("cacheTtlMs 超过上限时 clamp", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(normalizeConfig({ ...DEFAULT_CONFIG, cacheTtlMs: 10_000_000 }).cacheTtlMs).toBe(3_600_000);
+  });
+
+  it("cacheTtlMs=0 禁用缓存", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const c = normalizeConfig({ ...DEFAULT_CONFIG, cacheTtlMs: 0 });
+    expect(c.cacheTtlMs).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -97,16 +114,15 @@ describe("loadKeysFromEnv", () => {
     expect(keys[0].key).toBe("single-key");
   });
 
-  it("配置文件 Key 优先于环境变量", () => {
+  it("环境变量优先于配置文件 Key", () => {
     process.env.DOUBAO_SEARCH_API_KEYS = "env-key";
     const keys = loadKeysFromEnv({
       ...DEFAULT_CONFIG,
       postpaidKeys: ["cfg-key1"],
       subscriptionKeys: ["cfg-key2"],
     });
-    expect(keys).toHaveLength(2);
-    expect(keys[0]).toMatchObject({ key: "cfg-key1", billingType: "postpaid" });
-    expect(keys[1]).toMatchObject({ key: "cfg-key2", billingType: "subscription" });
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).toMatchObject({ key: "env-key", billingType: "postpaid" });
   });
 
   it("配置文件空数组不遮蔽环境变量", () => {

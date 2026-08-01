@@ -5,11 +5,16 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { UnifiedSearchResult } from "./types.ts";
+import { TtlCache } from "./cache.ts";
 import { loadConfig, loadKeysFromEnv } from "./config.ts";
 import { KeyPool } from "./key-pool.ts";
 import { KeyStatusComponent } from "./key-status.ts";
 import { createWebSearchTool } from "./tool.ts";
 import { DEFAULT_CONFIG } from "./types.ts";
+
+/** 搜索缓存单例：模块级共享，session_start 时按配置 TTL 创建。 */
+let sharedCache: TtlCache<UnifiedSearchResult> | undefined;
 
 export default function (pi: ExtensionAPI) {
   let pool: KeyPool | null = null;
@@ -25,7 +30,10 @@ export default function (pi: ExtensionAPI) {
     // 3. 初始化 KeyPool
     pool = new KeyPool(keys);
 
-    // 4. 启动检查：未配置 Key 时警告
+    // 4. 初始化缓存（TTL=0 禁用）
+    sharedCache = config.cacheTtlMs > 0 ? new TtlCache<UnifiedSearchResult>(config.cacheTtlMs) : undefined;
+
+    // 5. 启动检查：未配置 Key 时警告
     if (keys.length === 0 && ctx.hasUI) {
       ctx.ui.notify(
         "No Doubao Search API key configured. Set the DOUBAO_SEARCH_API_KEYS or DOUBAO_SEARCH_API_KEY environment variable.",
@@ -37,6 +45,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_shutdown", async () => {
     // KeyPool 无需显式清理（无打开的资源/定时器）
     pool = null;
+    sharedCache = undefined;
   });
 
   // 注册 doubao_web_search 工具（通过 getter 传入最新 pool/config 引用）
@@ -48,6 +57,7 @@ export default function (pi: ExtensionAPI) {
       return pool;
     },
     () => config,
+    () => sharedCache,
   ));
 
   // 注册 /doubao-keys 命令

@@ -73,3 +73,25 @@ export class DoubaoApiError extends Error {
     this.codeN = codeN;
   }
 }
+
+// ============================================================================
+// 搜索错误分类（供 tool 层区分取消/超时/失败）
+// ============================================================================
+
+/** 搜索失败原因（判别联合，供上层按类型处理）。 */
+export type SearchErrorCode
+  = | "aborted" // 用户取消
+    | "timeout" // 请求超时
+    | "network" // 连接类网络错误
+    | "api"; // API 返回的不可重试错误
+
+/** 搜索失败的错误（code 为判别联合，上层据此区分取消/超时等场景）。 */
+export class SearchError extends Error {
+  readonly code: SearchErrorCode;
+
+  constructor(message: string, code: SearchErrorCode) {
+    super(message);
+    this.name = "SearchError";
+    this.code = code;
+  }
+}

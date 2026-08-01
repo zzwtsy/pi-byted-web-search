@@ -11,7 +11,7 @@ import type {
   UnifiedSearchRequest,
   UnifiedSearchResult,
 } from "./types.ts";
-import { DoubaoApiError, getErrorStrategy } from "./errors.ts";
+import { DoubaoApiError, getErrorStrategy, SearchError } from "./errors.ts";
 
 /** 搜索结果 + 使用的 Key 标签。 */
 export interface SearchOutcome {
@@ -32,20 +32,20 @@ export interface RetryInfo {
 /**
  * 可重试的网络错误（连接失败等瞬时故障）。
  *
- * 与超时/用户取消区分：这两类不重试——超时可能已在服务端计费，
+ * 与超时/用户取消区分：这两类不重试--超时可能已在服务端计费，
  * 免费额度有限，重试有重复扣费风险。
  */
-class NetworkRequestError extends Error {
+class NetworkRequestError extends SearchError {
   constructor(message: string) {
-    super(message);
+    super(message, "network");
     this.name = "NetworkRequestError";
   }
 }
 
 /** 内部错误（10500/10501）的同 Key 重试次数上限。 */
 const SAME_KEY_RETRIES = 1;
-/** 同 Key 重试退避间隔（ms），降低 QPS 叠加。 */
-const SAME_KEY_RETRY_DELAY_MS = 200;
+/** 同 Key 重试退避基准间隔（ms），实际延迟 = base * 2^attempt + jitter。 */
+const SAME_KEY_RETRY_BASE_MS = 200;
 
 /**
  * 带 KeyPool failover 的搜索请求。
@@ -64,7 +64,7 @@ export async function searchWithKeyPool(
   onRetry?: (info: RetryInfo) => void,
 ): Promise<SearchOutcome> {
   if (pool.size === 0) {
-    throw new Error("No API key configured. Set the DOUBAO_SEARCH_API_KEYS or DOUBAO_SEARCH_API_KEY environment variable.");
+    throw new SearchError("No API key configured. Set the DOUBAO_SEARCH_API_KEYS or DOUBAO_SEARCH_API_KEY environment variable.", "api");
   }
 
   const maxRetries = pool.size;
@@ -73,7 +73,7 @@ export async function searchWithKeyPool(
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const keyState = pool.acquire(adapter.version);
     if (!keyState) {
-      throw new Error(formatNoKeyError(pool));
+      throw new SearchError(formatNoKeyError(pool), "api");
     }
 
     // 换 Key 后通知进度（首次尝试不通知）
@@ -109,7 +109,9 @@ export async function searchWithKeyPool(
             }
             if (strategy === "retrySameKey" && sameKeyRetries > 0) {
               sameKeyRetries--;
-              await sleep(SAME_KEY_RETRY_DELAY_MS);
+              // 指数退避 + 抖动，防惊群
+              const backoff = SAME_KEY_RETRY_BASE_MS * 2 ** (SAME_KEY_RETRIES - sameKeyRetries - 1);
+              await sleep(backoff + Math.random() * backoff * 0.1, signal);
               continue; // 同 Key 重试
             }
             if (strategy === "retrySameKey") {
@@ -123,6 +125,7 @@ export async function searchWithKeyPool(
           }
 
           // fatal / 超时 / 用户取消 / 网络错误重试耗尽：直接抛出
+          // SearchError（aborted/timeout）直接透传，不换 Key
           throw err;
         }
       }
@@ -132,13 +135,20 @@ export async function searchWithKeyPool(
     }
   }
 
-  throw new Error(
+  throw new SearchError(
     `All API keys unavailable.${lastError ? ` Last error: ${lastError.message}` : ""}`,
+    "api",
   );
 }
 
-async function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(new SearchError("Search cancelled.", "aborted"));
+    }, { once: true });
+  });
 }
 
 /** 单次 HTTP 请求。 */
@@ -172,10 +182,10 @@ async function doRequest(
   } catch (err) {
     const name = (err as Error).name;
     if (name === "TimeoutError") {
-      throw new Error("Search request timed out. Try a smaller count or a shorter query.");
+      throw new SearchError("Search request timed out. Try a smaller count or a shorter query.", "timeout");
     }
     if (name === "AbortError") {
-      throw new Error("Search cancelled.");
+      throw new SearchError("Search cancelled.", "aborted");
     }
     // 连接类错误（fetch failed / ECONNRESET 等）：瞬时故障，可换 Key 重试
     throw new NetworkRequestError(`Network request failed: ${(err as Error).message}`);

@@ -15,7 +15,7 @@ import {
 
 /**
  * 加载并合并全局（~/.pi/agent/）和项目（.pi/）配置。
- * 项目配置覆盖全局配置，全局配置覆盖默认值。
+ * 优先级：环境变量 > 项目配置 > 全局配置 > 默认值。
  * 合并后做合法性校验与 clamp，避免越界配置直接透传给 API。
  */
 export function loadConfig(cwd: string): DoubaoSearchConfig {
@@ -73,6 +73,15 @@ export function normalizeConfig(config: DoubaoSearchConfig): DoubaoSearchConfig 
     c.rateLimitCooldownMs = 60_000;
   }
 
+  // cacheTtlMs：负值无意义，0 = 禁用缓存
+  if (!Number.isFinite(c.cacheTtlMs) || c.cacheTtlMs < 0) {
+    warn("cacheTtlMs", c.cacheTtlMs, 300_000);
+    c.cacheTtlMs = 300_000;
+  } else if (c.cacheTtlMs > 3_600_000) {
+    warn("cacheTtlMs", c.cacheTtlMs, 3_600_000);
+    c.cacheTtlMs = 3_600_000;
+  }
+
   return c;
 }
 
@@ -106,21 +115,29 @@ function parseKeyWithBilling(raw: string): { key: string; billingType: BillingTy
 }
 
 /**
- * 从配置文件或环境变量加载 API Key。
+ * 从环境变量或配置文件加载 API Key。
  *
  * 优先级：
- * 1. 配置文件的 `postpaidKeys` / `subscriptionKeys`（任一存在时）
- * 2. 环境变量 `DOUBAO_SEARCH_API_KEYS`（逗号分隔，推荐）
- * 3. 环境变量 `DOUBAO_SEARCH_API_KEY`（单 Key）
+ * 1. 环境变量 `DOUBAO_SEARCH_API_KEYS`（逗号分隔，推荐）
+ * 2. 环境变量 `DOUBAO_SEARCH_API_KEY`（单 Key）
+ * 3. 配置文件的 `postpaidKeys` / `subscriptionKeys`（任一存在时）
  */
 export function loadKeysFromEnv(config: DoubaoSearchConfig): KeyState[] {
   const raw: { key: string; billingType: BillingType }[] = [];
 
-  // 优先级 1：配置文件中的 Key（按实际数量判断，空数组不遮蔽环境变量）
-  const hasFileKeys
-    = (config.postpaidKeys?.length ?? 0) + (config.subscriptionKeys?.length ?? 0) > 0;
+  // 优先级 1/2：环境变量
+  const multi = process.env.DOUBAO_SEARCH_API_KEYS;
+  const single = process.env.DOUBAO_SEARCH_API_KEY;
+  const rawStr = multi ?? single;
 
-  if (hasFileKeys) {
+  if (rawStr != null) {
+    for (const part of rawStr.split(",")) {
+      if (part.trim()) {
+        raw.push(parseKeyWithBilling(part));
+      }
+    }
+  } else {
+    // 优先级 3：配置文件中的 Key
     for (const k of config.postpaidKeys ?? []) {
       if (k.trim())
         raw.push({ key: k.trim(), billingType: "postpaid" });
@@ -128,19 +145,6 @@ export function loadKeysFromEnv(config: DoubaoSearchConfig): KeyState[] {
     for (const k of config.subscriptionKeys ?? []) {
       if (k.trim())
         raw.push({ key: k.trim(), billingType: "subscription" });
-    }
-  } else {
-    // 优先级 2/3：环境变量
-    const multi = process.env.DOUBAO_SEARCH_API_KEYS;
-    const single = process.env.DOUBAO_SEARCH_API_KEY;
-    const rawStr = multi ?? single;
-
-    if (rawStr != null) {
-      for (const part of rawStr.split(",")) {
-        if (part.trim()) {
-          raw.push(parseKeyWithBilling(part));
-        }
-      }
     }
   }
 
