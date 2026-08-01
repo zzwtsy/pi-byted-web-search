@@ -36,7 +36,7 @@ describe("createWebSearchTool", () => {
     const pool = new KeyPool([]);
     const tool = createWebSearchTool(() => pool, () => DEFAULT_CONFIG, () => undefined);
     expect(tool.name).toBe("doubao_web_search");
-    expect(tool.label).toBe("Web Search");
+    expect(tool.label).toBe("Doubao Web Search");
     expect(tool.promptSnippet).toBeDefined();
     expect(tool.promptGuidelines).toHaveLength(2);
     expect(tool.renderCall).toBeDefined();
