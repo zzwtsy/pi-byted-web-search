@@ -104,6 +104,7 @@ export function createWebSearchTool(
       const count = params.count ?? config.defaultCount;
 
       const req: UnifiedSearchRequest = {
+        version,
         query: params.query,
         // 防御非法 count（如配置文件中 defaultCount 越界）：封底 1、封顶 10、取整
         count: Math.min(Math.max(1, Math.round(count)), 10),
@@ -136,6 +137,10 @@ export function createWebSearchTool(
           results: cachedResult.results,
           cached: true,
         };
+        onUpdate?.({
+          content: [{ type: "text", text: `Serving ${cachedResult.results.length} cached results for: ${params.query}` }],
+          details,
+        });
         return {
           content: [{ type: "text", text }],
           details,
@@ -249,6 +254,7 @@ export function createWebSearchTool(
 /** 构造缓存 key：版本 + count + detailLevel + query + 过滤参数。 */
 function buildCacheKey(req: UnifiedSearchRequest): string {
   const parts = [
+    req.version,
     req.query,
     String(req.count),
     req.detailLevel,

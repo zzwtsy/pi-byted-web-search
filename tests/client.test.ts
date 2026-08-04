@@ -7,6 +7,7 @@ import { KeyPool } from "../src/key-pool.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";
 
 const baseReq: UnifiedSearchRequest = {
+  version: "custom",
   query: "test",
   count: 5,
   detailLevel: "summary",

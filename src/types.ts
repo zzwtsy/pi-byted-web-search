@@ -67,6 +67,7 @@ export type SearchVersion = "custom" | "global";
 export type DetailLevel = "brief" | "summary" | "full";
 
 export interface UnifiedSearchRequest {
+  version: SearchVersion;
   query: string;
   count: number;
   detailLevel: DetailLevel;

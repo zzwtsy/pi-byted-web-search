@@ -129,8 +129,10 @@ export function loadKeysFromEnv(config: DoubaoSearchConfig): KeyState[] {
   const multi = process.env.DOUBAO_SEARCH_API_KEYS;
   const single = process.env.DOUBAO_SEARCH_API_KEY;
   const rawStr = multi ?? single;
+  // 空串视为未设置，回退到配置文件中的 Key（避免误清空）
+  const hasEnvKeys = rawStr != null && rawStr.trim() !== "";
 
-  if (rawStr != null) {
+  if (hasEnvKeys) {
     for (const part of rawStr.split(",")) {
       if (part.trim()) {
         raw.push(parseKeyWithBilling(part));

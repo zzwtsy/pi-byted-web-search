@@ -5,6 +5,7 @@ import { globalAdapter } from "../src/global-adapter.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";
 
 const baseReq: UnifiedSearchRequest = {
+  version: "global",
   query: "test",
   count: 5,
   detailLevel: "summary",

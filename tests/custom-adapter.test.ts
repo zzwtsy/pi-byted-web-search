@@ -5,6 +5,7 @@ import { customAdapter } from "../src/custom-adapter.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";
 
 const baseReq: UnifiedSearchRequest = {
+  version: "custom",
   query: "测试",
   count: 5,
   detailLevel: "summary",
