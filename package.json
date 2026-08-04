@@ -1,7 +1,7 @@
 {
   "name": "pi-byted-web-search",
   "type": "module",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "packageManager": "pnpm@11.18.0",
   "description": "Doubao Search extension for pi coding agent",
   "license": "MIT",
