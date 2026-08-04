@@ -125,3 +125,34 @@ function errorText(theme: Theme, s: KeyState): string {
   }
   return "";
 }
+
+/**
+ * 纯文本 Key 状态视图（无颜色，供 RPC notify 等非 TUI 场景使用）。
+ *
+ * 输入直接用 `KeyPool.getStatus()` 的返回值（已脱敏 key、已恢复过期限流）。
+ */
+export function formatKeyStatus(states: KeyState[]): string {
+  const lines = [`Doubao Search Keys (${states.length}):`];
+  if (states.length === 0) {
+    lines.push("  No API keys configured.");
+    return lines.join("\n");
+  }
+  states.forEach((s, i) => {
+    const parts = [
+      `#${i + 1}`,
+      s.key,
+      s.billingType === "subscription" ? "sub" : "postpaid",
+      s.status,
+    ];
+    if (s.status === "rate_limited" && s.rateLimitedUntil != null) {
+      const remaining = Math.max(0, Math.ceil((s.rateLimitedUntil - Date.now()) / 1000));
+      parts.push(`(${remaining}s left)`);
+    }
+    if (s.lastError != null) {
+      parts.push(truncateText(s.lastError, ERROR_MAX_CHARS));
+    }
+    parts.push(`${s.useCount} calls`);
+    lines.push(`  ${parts.join("  ")}`);
+  });
+  return lines.join("\n");
+}

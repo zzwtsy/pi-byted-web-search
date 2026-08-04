@@ -1,7 +1,7 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { KeyState } from "../src/types.ts";
 import { describe, expect, it, vi } from "vitest";
-import { KeyStatusComponent } from "../src/key-status.ts";
+import { formatKeyStatus, KeyStatusComponent } from "../src/key-status.ts";
 
 /** 创建 mock Theme，返回带 spy 的 fg/bold */
 function mockTheme() {
@@ -132,5 +132,39 @@ describe("KeyStatusComponent", () => {
     const second = comp.render(80);
     expect(second.join("\n")).toContain("exhausted");
     expect(second).not.toBe(first);
+  });
+});
+
+describe("formatKeyStatus", () => {
+  it("空池时显示提示", () => {
+    expect(formatKeyStatus([])).toContain("No API keys configured");
+  });
+
+  it("渲染各状态字段与脱敏 key", () => {
+    const states = [
+      makeState({ key: "abcd...wxyz", billingType: "postpaid", status: "active", useCount: 5 }),
+      makeState({ key: "efgh...stuv", billingType: "subscription", status: "exhausted", useCount: 500 }),
+    ];
+    const text = formatKeyStatus(states);
+
+    expect(text).toContain("Doubao Search Keys (2):");
+    expect(text).toContain("#1  abcd...wxyz  postpaid  active  5 calls");
+    expect(text).toContain("#2  efgh...stuv  sub  exhausted  500 calls");
+  });
+
+  it("限流状态显示冷却剩余秒数", () => {
+    const states = [
+      makeState({ status: "rate_limited", rateLimitedUntil: Date.now() + 30_000 }),
+    ];
+    const text = formatKeyStatus(states);
+    expect(text).toMatch(/rate_limited\s+\(\d+s left\)/);
+  });
+
+  it("lastError 过长时截断", () => {
+    const longError = "e".repeat(200);
+    const states = [makeState({ status: "exhausted", lastError: longError })];
+    const text = formatKeyStatus(states);
+    expect(text).toContain("...");
+    expect(text.length).toBeLessThan(200 + 100);
   });
 });

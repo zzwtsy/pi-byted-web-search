@@ -250,7 +250,7 @@ describe("index.ts 扩展入口", () => {
     expect(ctx.ui.custom).not.toHaveBeenCalled();
   });
 
-  it("/doubao-keys 命令在非 tui 模式时不执行", async () => {
+  it("/doubao-keys 命令在 rpc 模式用 notify 兜底", async () => {
     const pi = mockPi();
     const { default: factory } = await import("../src/index.ts");
     factory(pi);
@@ -259,10 +259,30 @@ describe("index.ts 扩展入口", () => {
     await startHandler?.({}, mockCtx());
 
     const cmdOpts = getCommandHandler(pi);
-    const ctx = mockCtx({ mode: "print" });
+    const ctx = mockCtx({ mode: "rpc" });
     await cmdOpts!.handler("", ctx);
 
+    // 交互面板不可用，改为 fire-and-forget notify
     expect(ctx.ui.custom).not.toHaveBeenCalled();
+    expect(ctx.ui.notify).toHaveBeenCalledTimes(1);
+    expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("Doubao Search Keys"), "info");
+  });
+
+  it("/doubao-keys 命令在 print/json 模式保持静默", async () => {
+    const pi = mockPi();
+    const { default: factory } = await import("../src/index.ts");
+    factory(pi);
+
+    const startHandler = getSessionStartHandler(pi);
+    await startHandler?.({}, mockCtx());
+
+    const cmdOpts = getCommandHandler(pi);
+    for (const mode of ["print", "json"]) {
+      const ctx = mockCtx({ mode });
+      await cmdOpts!.handler("", ctx);
+      expect(ctx.ui.custom).not.toHaveBeenCalled();
+      expect(ctx.ui.notify).not.toHaveBeenCalled();
+    }
   });
 
   it("session_shutdown 将 pool 置 null", async () => {

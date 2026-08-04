@@ -9,7 +9,7 @@ import type { UnifiedSearchResult } from "./types.ts";
 import { TtlCache } from "./cache.ts";
 import { loadConfig, loadKeysFromEnv } from "./config.ts";
 import { KeyPool } from "./key-pool.ts";
-import { KeyStatusComponent } from "./key-status.ts";
+import { formatKeyStatus, KeyStatusComponent } from "./key-status.ts";
 import { createWebSearchTool } from "./tool.ts";
 import { DEFAULT_CONFIG } from "./types.ts";
 
@@ -64,14 +64,20 @@ export default function (pi: ExtensionAPI) {
   pi.registerCommand("doubao-keys", {
     description: "Show Doubao Search API key pool status",
     handler: async (_args, ctx) => {
-      // hasUI 在 RPC 模式同样为 true（见 pi types.d.ts），终端 UI 用 mode 守卫
-      if (ctx.mode !== "tui" || pool === null)
-        return;
-      // 快照引用，避免组件打开期间 session_shutdown 将 pool 置 null
       const currentPool = pool;
-      await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
-        return new KeyStatusComponent(() => currentPool.getStatus(), theme, () => done());
-      });
+      if (currentPool === null)
+        return;
+
+      if (ctx.mode === "tui") {
+        // 交互式可滚动面板（保持现状）
+        await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
+          return new KeyStatusComponent(() => currentPool.getStatus(), theme, () => done());
+        });
+      } else if (ctx.mode === "rpc") {
+        // RPC 兜底：fire-and-forget notify，通过 extension_ui_request 发给客户端
+        ctx.ui.notify(formatKeyStatus(currentPool.getStatus()), "info");
+      }
+      // json / print：hasUI 为 false，notify 是 no-op，无需处理
     },
   });
 }
